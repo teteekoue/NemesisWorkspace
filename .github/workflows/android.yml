@@ -163,31 +163,50 @@ jobs:
       - name: Vérifier chaque paquet
         shell: bash
         run: |
+          exec > >(tee /tmp/verify.log) 2>&1
           set -uo pipefail
-          exec > >(tee /tmp/android-build.log) 2>&1
+          fail() { echo "::error::$*"; exit 1; }
+
           APKS=$(find android/app/build/outputs/apk/release -name '*.apk' | sort)
-          test -n "$APKS" || { echo "::error::Aucun paquet produit."; exit 1; }
+          [ -n "$APKS" ] || fail "Aucun paquet produit."
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           echo "Outils de construction : $BUILD_TOOLS"
           rm -rf verification && mkdir -p verification
+
           for apk in $APKS; do
             name=$(basename "$apk" .apk)
             echo "── $name"
-            # 1. La signature est valide et couvre tout le paquet.
-            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$apk" | tee "verification/$name.signature.txt" | head -6
-            grep -q "Verifies" "verification/$name.signature.txt"
-            # 2. Le paquet est aligné sur 4 octets au moins.
-            "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "verification/$name.align.txt"
-            tail -1 "verification/$name.align.txt"
-            # 3. Les bibliothèques sont celles de l'architecture annoncée.
-            unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u | tee "verification/$name.abis.txt"
-            # 4. L'interface est bien embarquée.
-            unzip -l "$apk" | grep -q 'assets/www/index.html'
-            # 5. L'empreinte, pour vérification à la main après téléchargement.
+            # 1. Signature valide, couvrant tout le paquet.
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$apk" > "verification/$name.signature.txt" 2>&1 \
+              || fail "$name : signature invalide"
+            sed -n '1,6p' "verification/$name.signature.txt"
+            grep -q '^Verifies' "verification/$name.signature.txt" || fail "$name : signature non vérifiée"
+            # 2. Alignement 4 octets (16 pour les pages de 16 Ko).
+            "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "verification/$name.align.txt" 2>&1 \
+              || fail "$name : paquet mal aligné"
+            tail -n 1 "verification/$name.align.txt"
+            # 3. Architectures réellement embarquées.
+            unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u > "verification/$name.abis.txt" || true
+            echo "   architectures : $(tr '\n' ' ' < "verification/$name.abis.txt")"
+            # 4. L'interface est embarquée, en entier.
+            unzip -l "$apk" | grep -q 'assets/www/index.html' || fail "$name : interface absente"
+            unzip -l "$apk" | grep -q 'assets/www/documents/index.html' || fail "$name : éditeur de documents absent"
+            unzip -l "$apk" | grep -q 'assets/www/spreadsheet/index.html' || fail "$name : tableur absent"
+            unzip -l "$apk" | grep -q 'assets/www/presentation/index.html' || fail "$name : présentations absentes"
+            # 5. Empreinte et taille, publiées avec les paquets.
             sha256sum "$apk" | tee "verification/$name.sha256"
-            # 6. La taille.
             stat -c '%s' "$apk" > "verification/$name.size"
           done
+
+          # 6. Chaque architecture demandée a son paquet, plus l'universel.
+          for abi in x86 armeabi-v7a arm64-v8a; do
+            found=$(cat verification/*.abis.txt | grep -qx "$abi" && echo oui || echo non)
+            [ "$found" = oui ] || fail "aucun paquet pour $abi"
+          done
+          universal=$(grep -l . verification/*.abis.txt | while read -r f; do
+            n=$(wc -l < "$f"); [ "$n" -ge 3 ] && echo "$f"; done | head -1)
+          [ -n "$universal" ] || fail "aucun paquet universel"
+          echo "::notice::Vérifications terminées : signature, alignement, architectures, interface."
 
       - name: Effacer la clé du disque
         if: always()
@@ -240,7 +259,7 @@ jobs:
           {
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
-            for f in /tmp/android-build.log; do
+            for f in /tmp/android-build.log /tmp/verify.log; do
               [ -f "$f" ] || continue
               echo "\`\`\`"
               # Les lignes qui expliquent l'échec, pas la pile d'appels.
