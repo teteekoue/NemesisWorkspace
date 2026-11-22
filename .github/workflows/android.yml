@@ -224,27 +224,33 @@ jobs:
           set -uo pipefail
           fail() { echo "::error::$*"; exit 1; }
 
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build >/dev/null
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "emulator" "platform-tools" "system-images;android-30;google_apis;x86" >/dev/null
+          ANDROID="$ANDROID_HOME/cmdline-tools/latest/bin"
+          yes 2>/dev/null | "$ANDROID/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID/sdkmanager" --install "emulator" "platform-tools" \
+            "system-images;android-30;google_apis;x86" >/dev/null || fail "téléchargement de l'émulateur impossible"
 
           APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
           echo "Paquet testé : $APK"
 
           # Un appareil de bureau : 1600×1200, clavier et souris.
-          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            -n nemesis -k "system-images;android-30;google_apis;x86" --force >/dev/null
-          echo 'hw.keyboard=yes' >> "$HOME/.android/avd/nemesis.avd/config.ini"
-          echo 'hw.lcd.width=1600' >> "$HOME/.android/avd/nemesis.avd/config.ini"
-          echo 'hw.lcd.height=1200' >> "$HOME/.android/avd/nemesis.avd/config.ini"
-          echo 'hw.lcd.density=160' >> "$HOME/.android/avd/nemesis.avd/config.ini"
+          echo "no" | "$ANDROID/avdmanager" create avd \
+            -n nemesis -k "system-images;android-30;google_apis;x86" --force >/dev/null 2>&1 \
+            || fail "création de l'appareil virtuel impossible"
+          CONFIG="$HOME/.android/avd/nemesis.avd/config.ini"
+          [ -f "$CONFIG" ] || fail "configuration de l'appareil virtuel absente"
+          # Un appareil de bureau : écran large, clavier et souris.
+          {
+            echo 'hw.keyboard=yes'
+            echo 'hw.lcd.width=1600'
+            echo 'hw.lcd.height=1200'
+            echo 'hw.lcd.density=160'
+          } >> "$CONFIG"
 
           "$ANDROID_HOME/emulator/emulator" -avd nemesis -no-window -no-audio -no-boot-anim \
             -gpu swiftshader_indirect -no-snapshot > /tmp/emulator.out 2>&1 &
           EMULATOR=$!
           "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          boot=""
           for i in $(seq 1 90); do
             boot=$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             [ "$boot" = "1" ] && break
