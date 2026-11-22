@@ -72,9 +72,10 @@ export const AI_PRESETS = [
     label: 'TokenHarbor',
     baseUrl: 'https://tokenharbor.ai/v1',
     models: ['deepseek-v4-flash:free', 'gpt-4.1-mini', 'claude-sonnet-4'],
-    vision: true,
+    // Sa politique est texte seul : ne pas promettre d'images ici.
+    vision: false,
     thinking: false,
-    hint: "Passerelle unique vers GPT, Claude, Gemini, DeepSeek… : une seule clé thk_…, endpoint https://tokenharbor.ai/v1.",
+    hint: "Passerelle unique vers GPT, Claude, Gemini, DeepSeek… : une seule clé thk_…, endpoint https://tokenharbor.ai/v1. Réponses texte (pas d'images).",
   },
   {
     id: 'ollama',
