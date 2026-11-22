@@ -75,7 +75,7 @@ jobs:
           set -o pipefail
           export NPM_CONFIG_PRODUCTION=false
           export NPM_CONFIG_OMIT=""
-          node dev/build-all.mjs 2>&1 | tee /tmp/build.log
+          node dev/build-all.mjs 2>&1 | tee /tmp/android-build.log
           # Rien ne doit être servi depuis le réseau : l'interface doit
           # exister, en entier, avant d'entrer dans l'application.
           test -f ../nemesis-workspace/dist/index.html
@@ -150,11 +150,11 @@ jobs:
           ./gradlew --no-daemon --stacktrace \
             -Pnemesis.versionName="${VERSION_NAME}" \
             -Pnemesis.versionCode="${VERSION_CODE}" \
-            assembleRelease 2>&1 | tee /tmp/gradle.log
+            assembleRelease 2>&1 | tee -a /tmp/android-build.log
           # Le détail de lint, s'il a bloqué la construction.
           # Le détail de lint, s'il a bloqué la construction.
           if [ -f app/build/reports/lint-results-release.txt ]; then
-            sed -n '/Lint Report/,$p' app/build/reports/lint-results-release.txt | head -80 | tee /tmp/lint.txt
+            head -60 app/build/reports/lint-results-release.txt | tee -a /tmp/android-build.log
           fi
           find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
 
@@ -221,8 +221,7 @@ jobs:
         with:
           name: echec-rapports
           path: |
-            /tmp/gradle.log
-            /tmp/build.log
+            /tmp/android-build.log
             android/app/build/reports/**
           if-no-files-found: ignore
           retention-days: 5
@@ -237,9 +236,8 @@ jobs:
           {
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
-            for f in /tmp/build.log /tmp/gradle.log /tmp/lint.txt; do
+            for f in /tmp/android-build.log; do
               [ -f "$f" ] || continue
-              echo "**$f**"
               echo "\`\`\`"
               # Les lignes qui expliquent l'échec, pas la pile d'appels.
               grep -E "^e: |error:|Error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed|severity|Lint found|^ *[0-9]+ +[a-z]" "$f" | tail -n 60 || true
