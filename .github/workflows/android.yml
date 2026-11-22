@@ -263,7 +263,8 @@ jobs:
           {
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
-            for f in /tmp/android-build.log /tmp/verify.log; do
+            [ -f /tmp/verify.log ] && { echo "**vérifications**"; echo '```'; tail -n 40 /tmp/verify.log; echo '```'; }
+            for f in /tmp/android-build.log; do
               [ -f "$f" ] || continue
               echo "\`\`\`"
               # Les lignes qui expliquent l'échec, pas la pile d'appels.
