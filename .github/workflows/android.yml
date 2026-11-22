@@ -234,10 +234,11 @@ jobs:
 
           # Un appareil de bureau : 1600×1200, clavier et souris.
           echo "no" | "$ANDROID/avdmanager" create avd \
-            -n nemesis -k "system-images;android-30;google_apis;x86" --force >/dev/null 2>&1 \
+            -n nemesis -k "system-images;android-30;google_apis;x86" --force \
             || fail "création de l'appareil virtuel impossible"
-          CONFIG="$HOME/.android/avd/nemesis.avd/config.ini"
-          [ -f "$CONFIG" ] || fail "configuration de l'appareil virtuel absente"
+          CONFIG=$(find "$HOME/.android" "$ANDROID_HOME" -name config.ini -path '*nemesis.avd*' 2>/dev/null | head -1)
+          [ -n "$CONFIG" ] || fail "configuration de l'appareil virtuel absente"
+          echo "Configuration : $CONFIG"
           # Un appareil de bureau : écran large, clavier et souris.
           {
             echo 'hw.keyboard=yes'
