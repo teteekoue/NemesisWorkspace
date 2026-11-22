@@ -198,7 +198,11 @@ jobs:
             stat -c '%s' "$apk" > "verification/$name.size"
           done
 
-          # 6. Chaque architecture demandée a son paquet, plus l'universel.
+          # 6. Ce que le runner a réellement produit, avant contrôle.
+          find android/app/build/outputs/apk/release -name '*.apk' -printf '%f\n' | sort
+          for f in verification/*.abis.txt; do echo "[$f] $(tr '\n' ' ' < "$f")"; done
+
+          # 7. Chaque architecture demandée a son paquet, plus l'universel.
           for abi in x86 armeabi-v7a arm64-v8a; do
             found=$(cat verification/*.abis.txt | grep -qx "$abi" && echo oui || echo non)
             [ "$found" = oui ] || fail "aucun paquet pour $abi"
