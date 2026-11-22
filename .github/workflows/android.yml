@@ -251,6 +251,14 @@ jobs:
             echo 'hw.lcd.density=160'
           } >> "$CONFIG"
 
+          # Sans accélération matérielle, le démarrage dépasse le délai : le
+          # runner qui la permet est demandé, et son état est vérifié.
+          if [ ! -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm 2>/dev/null || true
+          fi
+          [ -e /dev/kvm ] || fail "le noyau de la machine ne fournit pas KVM"
+          sudo usermod -aG kvm "$USER" 2>/dev/null || true
+          ls -l /dev/kvm
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" "$ANDROID_HOME/emulator/emulator" -avd nemesis -no-window -no-audio -no-boot-anim \
             -gpu swiftshader_indirect -no-snapshot > /tmp/emulator.out 2>&1 &
           EMULATOR=$!
