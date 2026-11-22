@@ -257,6 +257,31 @@ function errorFrom(response, body) {
  * Envoyer une conversation. Résout soit la réponse complète, soit un flux
  * asynchrone quand `stream: true` (comme le SDK d'origine).
  */
+/**
+ * Combien de temps on attend le fournisseur.
+ *
+ * Une requête qui n'obtient aucune réponse ne doit pas tenir l'interface en
+ * attente indéfiniment : sans cette limite, le panneau restait « en train de
+ * répondre » à jamais, avec un fournisseur qui accepte la connexion sans rien
+ * envoyer. On laisse large : un long raisonnement peut prendre des minutes,
+ * mais il finit par envoyer quelque chose entre deux jetons.
+ */
+const limit = (name, fallback) => {
+  const asked = Number(globalThis.__nemesisAiTimeouts?.[name]);
+  return Number.isFinite(asked) && asked > 0 ? asked : fallback;
+};
+export const FIRST_BYTE_TIMEOUT_MS = () => limit('firstByte', 45_000);
+export const IDLE_TIMEOUT_MS = () => limit('idle', 90_000);
+
+function timeoutError(url) {
+  return Object.assign(
+    new Error(
+      `Le fournisseur IA ne répond plus (${url}). Vérifiez l'adresse, la clé et la connexion, puis réessayez.`,
+    ),
+    { code: 'timeout' },
+  );
+}
+
 export async function chat(prompt, options = {}) {
   const ai = getAiConfig();
   if (!aiIsConfigured(ai)) {
@@ -300,15 +325,25 @@ export async function chat(prompt, options = {}) {
   // Un champ undefined n'a rien à faire dans le JSON.
   for (const key of Object.keys(body)) if (body[key] === undefined) delete body[key];
 
+  // L'appelant peut annuler (Stop) ; le délai ci-dessus s'y ajoute, il ne le remplace pas.
+  const caller = options.signal;
+  const deadline = new AbortController();
+  const signal = caller ? AbortSignal.any([caller, deadline.signal]) : deadline.signal;
+  let timer = setTimeout(() => deadline.abort(), FIRST_BYTE_TIMEOUT_MS());
+  const clear = () => { clearTimeout(timer); timer = null; };
+
   let response;
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: headersFor(provider),
       body: JSON.stringify(body),
-      signal: options.signal,
+      signal,
     });
+    clear();
   } catch (error) {
+    clear();
+    if (deadline.signal.aborted) throw timeoutError(url);
     if (error?.name === 'AbortError') throw error;
     throw Object.assign(
       new Error(
@@ -330,7 +365,7 @@ export async function chat(prompt, options = {}) {
 
   if (body.stream) {
     if (!response.body) throw new Error("Le fournisseur IA n'a pas renvoyé de flux.");
-    return streamFrom(response, { model, maxTokens: body.max_tokens });
+    return streamFrom(response, { model, maxTokens: body.max_tokens, deadline, url });
   }
 
   const payload = await response.json();
@@ -350,9 +385,13 @@ export async function chat(prompt, options = {}) {
  * (index, identifiant, nom, puis arguments en plusieurs chaînes) : ils sont
  * recomposés avant d'être émis.
  */
-async function* streamFrom(response, { model, maxTokens }) {
+async function* streamFrom(response, { model, maxTokens, deadline, url = '' }) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  // Un flux qui s'arrête au milieu d'une phrase ne doit pas non plus bloquer :
+  // chaque octet reçu repousse la limite, une lecture muette la déclenche.
+  let timer = setTimeout(() => deadline?.abort(), IDLE_TIMEOUT_MS());
+  const bump = () => { clearTimeout(timer); timer = setTimeout(() => deadline?.abort(), IDLE_TIMEOUT_MS()); };
   let buffer = '';
   const calls = new Map();
   let sentReasoning = false;
@@ -367,8 +406,16 @@ async function* streamFrom(response, { model, maxTokens }) {
 
   try {
     for (;;) {
-      const { value, done } = await reader.read();
+      let chunk;
+      try {
+        chunk = await reader.read();
+      } catch (error) {
+        if (deadline?.signal.aborted) throw timeoutError(url);
+        throw error;
+      }
+      const { value, done } = chunk;
       if (done) break;
+      bump();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || '';
@@ -435,6 +482,7 @@ async function* streamFrom(response, { model, maxTokens }) {
     }
     yield* finishCalls();
   } finally {
+    clearTimeout(timer);
     try {
       reader.releaseLock();
     } catch {

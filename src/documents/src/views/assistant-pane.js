@@ -35,7 +35,8 @@ import { commandIconEl } from '../ui/ribbon.js';
 const words = text => (String(text).trim().match(/\S+/gu) || []).length;
 const plural = (n, one, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-export function createAssistantPane({ editor, pkg, error, available = () => P.canUseAi(), chat = prompt => P.aiChat(prompt) }) {
+// `chat` reçoit les options : sans elles, l'agent n'aurait ni outils ni flux.
+export function createAssistantPane({ editor, pkg, error, available = () => P.canUseAi(), chat = (prompt, options) => P.aiChat(prompt, options) }) {
   let scope = 'selection', history = [], busy = false, stopped = null;
   // Each reply's Undo button, with whether the reply's step is still the latest one.
   const undoSteps = new Map();
@@ -60,8 +61,8 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     scope = next === scopeSelection ? 'selection' : 'document'; renderContext(); renderEmpty(); next.focus();
   });
   const context = el('p.as-context', { 'aria-live': 'polite' });
-  const input = el('textarea.input.as-input', { rows: 3, placeholder: 'Ask about this document, or ask for a draft or a rewrite…', 'aria-label': 'Message the assistant', enterKeyHint: 'send' });
-  const send = el('button.btn.btn-primary.as-send', { type: 'submit', 'aria-label': 'Send', title: 'Send (Enter)' }, 'Send');
+  const input = el('textarea.as-input', { rows: 2, placeholder: 'Ask about this document, or ask for a draft or a rewrite…', 'aria-label': 'Message the assistant', enterKeyHint: 'send' });
+  const send = el('button.as-send', { type: 'submit', 'aria-label': 'Send', title: 'Send (Enter)' }, commandIconEl('arrowUp', 18));
   // Une image jointe à une question : le fournisseur réglé doit l'accepter.
   const attachments = [];
   const attachRow = el('div.as-attachments');
@@ -92,16 +93,23 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
         : el('span', {}, 'Aucun fournisseur prêt — ouvrez Paramètres ▸ Intelligence artificielle.'),
     );
   }
-  const form = el('form.as-form', { onsubmit: e => { e.preventDefault(); submit(input.value); } }, scopeGroup, context,
-    el('div.as-box', {}, el('div.as-box-actions', {}, attachButton), el('div', { style: { flex: '1', display: 'flex', flexDirection: 'column', gap: '6px' } }, attachRow, input), el('div.as-box-actions', {}, send)),
+  // Le composeur : le champ dans une carte, les outils sur sa rangée du bas.
+  const form = el('form.as-form', { onsubmit: e => { e.preventDefault(); submit(input.value); } },
+    el('div.as-box', {},
+      input,
+      attachRow,
+      el('div.as-box-row', {}, scopeGroup, el('div.as-box-actions', {}, attachButton, send))),
     fileInput,
+    el('div.as-box-row', {}, context),
     el('p.as-disclaimer', {}, 'Only the text and images shown above are sent to your AI provider. Replies can be wrong: check them before you use them.'),
     providerLine);
   input.addEventListener('keydown', e => {
     if (isComposing(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(input.value); }
   });
-  pane.body.append(log, form);
+  // Une colonne : le fil défile, le formulaire reste à sa place en bas.
+  const conversation = el('div.as-conversation', {}, log);
+  pane.body.append(conversation, form);
   paintProvider();
   paintAttachments();
   window.addEventListener('nemesis:config', paintProvider);
@@ -185,7 +193,7 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
       message('me', el('div.as-images', {}, ...attachments.map((item) => el('img', { src: `data:${item.media};base64,${item.data}`, alt: item.name }))));
       attachments.length = 0; paintAttachments();
     }
-    await reply(async (waiting) => {
+    await reply(async (waiting, token) => {
       try {
         // Sans images, l'agent reçoit la demande et le document, qu'il lit lui-même.
         // Avec images, on garde le contenu multimodal (l'aperçu ci-dessus le montre).

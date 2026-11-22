@@ -3071,22 +3071,29 @@ body:has(.presenter[open]) #toast {
 .ai-empty {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 340px;
+  margin: auto;
+  padding: 16px 4px;
+  text-align: center;
   gap: 8px;
-  padding: 10px 2px 4px;
 }
 .ai-empty-mark {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   background: var(--accent-wash);
-  color: var(--accent);
-  margin-bottom: 4px;
+  color: var(--accent-strong);
+  margin-bottom: 6px;
 }
 .ai-empty-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.3;
+  text-wrap: balance;
 }
 .ai-empty-text {
   font-size: 13px;
@@ -3097,22 +3104,26 @@ body:has(.presenter[open]) #toast {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 8px 0 4px;
+  width: 100%;
+  margin: 12px 0 4px;
   padding: 0;
   list-style: none;
 }
 .ai-suggestion {
   width: 100%;
   text-align: left;
-  padding: 8px 11px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 .ai-suggestion:hover {
-  background: var(--surface-2);
+  border-color: var(--line);
 }
 .ai-privacy {
   margin-top: 4px;
@@ -3464,13 +3475,11 @@ body:has(.presenter[open]) #toast {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 4px 4px 4px 12px;
+  padding: 8px 8px 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-}
-.ai-input-wrap {
   border-radius: 14px;
+  background: var(--surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .ai-attach {
   flex: none;
@@ -3534,7 +3543,7 @@ body:has(.presenter[open]) #toast {
 }
 .ai-input-wrap:focus-within {
   border-color: var(--accent);
-  outline: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .ai-input {
   flex: 1;
@@ -3595,8 +3604,9 @@ body:has(.presenter[open]) #toast {
   }
 }
 /* A phone has no room beside the slide: the assistant is a sheet over the
-   lower part of the screen. */
-@media (max-width: 760px) {
+   lower part of the screen — the same width as the sheet's and the
+   documents' assistant, so the three behave alike. */
+@media (max-width: 640px) {
   .btn.ai-toggle {
     width: 36px;
     min-width: 36px;
