@@ -144,7 +144,7 @@ jobs:
         env:
           NEMESIS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          set -euo pipefail
+          set +e
           cd android
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace \
@@ -152,10 +152,13 @@ jobs:
             -Pnemesis.versionCode="${VERSION_CODE}" \
             assembleRelease 2>&1 | tee -a /tmp/android-build.log
           # Le détail de lint, s'il a bloqué la construction.
+          echo "EXIT=$?"
           # Le détail de lint, s'il a bloqué la construction.
           if [ -f app/build/reports/lint-results-release.txt ]; then
             head -60 app/build/reports/lint-results-release.txt | tee -a /tmp/android-build.log
           fi
+          ls app/build/outputs/apk/release 2>/dev/null || echo "aucun APK"
+          exit 1
           find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
 
       - name: Vérifier chaque paquet
