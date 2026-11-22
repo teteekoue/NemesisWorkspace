@@ -161,8 +161,10 @@ jobs:
           exit "$STATUS"
 
       - name: Vérifier chaque paquet
+        shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          exec > >(tee /tmp/android-build.log) 2>&1
           APKS=$(find android/app/build/outputs/apk/release -name '*.apk' | sort)
           test -n "$APKS" || { echo "::error::Aucun paquet produit."; exit 1; }
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
