@@ -222,7 +222,7 @@ export function createAssistantPanel(env) {
 
   const input = el("textarea", {
     class: "ai-input",
-    rows: 1,
+    rows: 2,
     placeholder: "Ask or tell the assistant…",
     "aria-label": "Message the assistant",
     enterkeyhint: "send",
@@ -1012,7 +1012,9 @@ export function createAssistantPanel(env) {
 
   function autoGrow() {
     input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    // Huit lignes au plus : au-delà, le champ défile (les trois panneaux de
+    // l'espace gardent la même mesure).
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
   }
   input.addEventListener("input", autoGrow);
   input.addEventListener("keydown", (e) => {

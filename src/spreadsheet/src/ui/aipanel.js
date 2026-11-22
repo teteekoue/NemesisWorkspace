@@ -200,7 +200,8 @@ export function createAiPanel(ctx, env, { onToggle, onBusy } = {}) {
   log.append(empty);
 
   const input = el('textarea.ai-input', {
-    rows: 3, spellcheck: true, placeholder: t('aipanel.inputPlaceholder'), 'aria-label': t('aipanel.inputLabel'),
+    // Deux lignes au repos ; le texte fait grandir le champ (voir autoGrow).
+    rows: 2, spellcheck: true, placeholder: t('aipanel.inputPlaceholder'), 'aria-label': t('aipanel.inputLabel'),
     enterKeyHint: 'send',
   });
   const sendBtn = el('button.ai-send', { type: 'submit', html: icon('arrowUp', 18, 2.2), 'aria-label': t('aipanel.send'), title: t('aipanel.sendTitle') });
@@ -896,7 +897,7 @@ export function createAiPanel(ctx, env, { onToggle, onBusy } = {}) {
   function fitInput() {
     if (root.hidden) return;
     input.style.height = 'auto';
-    input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
   }
   input.addEventListener('input', autoGrow);
   input.addEventListener('keydown', (e) => {

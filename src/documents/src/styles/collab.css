@@ -86,19 +86,23 @@
 .as-pane .canvas-panel-heading {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 6px 0 12px;
-  height: var(--editor-menubar-h, 44px);
+  gap: 0;
+  padding: 0 4px 0 10px;
+  /* La hauteur de la barre de menus de l'éditeur : l'en-tête du panneau et
+     celle du document se lisent sur la même ligne, comme dans le tableur. */
+  height: var(--editor-menubar-h, 34px);
+  min-height: 0;
   flex: none;
+  border-bottom: 1px solid var(--ed-line, var(--hairline));
 }
 .as-pane .canvas-panel-heading h2 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 .as-pane .canvas-panel-heading .as-new {
@@ -106,13 +110,13 @@
   border: 0;
   background: none;
   color: var(--ed-ink-2, var(--ink-2));
-  font: 12.5px/1 var(--font);
-  padding: 6px 8px;
-  border-radius: 7px;
+  font: 12px/1 var(--font);
+  padding: 4px 6px;
+  border-radius: 6px;
   cursor: pointer;
 }
 .as-pane .canvas-panel-heading .as-new:hover { background: var(--ed-hover, var(--surface-2)); color: var(--ed-ink, var(--ink)); }
-.as-pane .canvas-panel-heading .icon-btn { width: 28px; height: 28px; }
+.as-pane .canvas-panel-heading .icon-btn { width: 24px; height: 24px; }
 .as-mark { display: inline-flex; color: var(--ed-accent, var(--accent)); }
 /* La colonne du panneau : le fil prend la hauteur, le composeur garde la sienne. */
 .as-pane .rv-pane-body {
@@ -222,8 +226,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: 4px;
+  padding: 8px 10px;
   border: 1px solid var(--ed-line, var(--hairline-strong));
   border-radius: 14px;
   background: var(--ed-card, var(--surface));
@@ -236,8 +240,9 @@
 .as-input {
   width: 100%;
   resize: none;
-  min-height: 44px;
-  max-height: 160px;
+  /* Deux lignes au repos ; elle grandit avec le texte jusqu'à huit. */
+  min-height: 38px;
+  max-height: 128px;
   padding: 0;
   border: 0;
   border-radius: 0;

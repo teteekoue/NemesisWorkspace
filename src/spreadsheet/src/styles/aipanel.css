@@ -377,8 +377,8 @@ body.dropping.dropping-local::after { display: none; }
 .ai-input {
   flex: 1;
   min-width: 0;
-  min-height: calc(4.35em + 4px); /* Three lines plus the vertical padding. */
-  max-height: 180px;
+  min-height: calc(2.9em + 4px); /* Two lines plus the vertical padding. */
+  max-height: 128px;
   padding: 2px 4px 2px 0;
   border: 0;
   background: transparent;

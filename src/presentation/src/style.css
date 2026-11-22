@@ -3031,16 +3031,19 @@ body:has(.presenter[open]) #toast {
 .ai-head {
   display: flex;
   align-items: center;
-  gap: 2px;
-  min-height: 49px;
-  padding: 0 6px 0 14px;
+  gap: 0;
+  /* La hauteur de la barre de menus de l'éditeur : les trois panneaux de
+     l'espace ont la même ligne d'en-tête. */
+  height: 34px;
+  min-height: 34px;
+  padding: 0 4px 0 10px;
   border-bottom: 1px solid var(--line);
   flex: none;
 }
 .ai-head .icon-btn {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
   min-height: 32px;
   padding: 7px;
 }
@@ -3475,7 +3478,7 @@ body:has(.presenter[open]) #toast {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 8px 8px 8px 12px;
+  padding: 6px 6px 6px 10px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
@@ -3548,9 +3551,10 @@ body:has(.presenter[open]) #toast {
 .ai-input {
   flex: 1;
   min-width: 0;
-  min-height: 22px;
-  max-height: 180px;
-  padding: 6px 0;
+  /* Deux lignes au repos ; le texte fait grandir le champ jusqu'à huit. */
+  min-height: 38px;
+  max-height: 128px;
+  padding: 4px 0;
   border: 0;
   background: transparent;
   color: var(--ink);

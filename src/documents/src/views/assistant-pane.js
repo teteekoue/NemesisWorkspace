@@ -103,6 +103,15 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     el('div.as-box-row', {}, context),
     el('p.as-disclaimer', {}, 'Only the text and images shown above are sent to your AI provider. Replies can be wrong: check them before you use them.'),
     providerLine);
+  // Le champ s'ajuste au texte : deux lignes au repos, jamais plus de huit
+  // (le reste défile), et il reprend sa taille une fois le message parti.
+  function autoGrow() {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+    input.style.overflowY = input.scrollHeight > 128 ? 'auto' : 'hidden';
+  }
+  input.addEventListener('input', autoGrow);
+  autoGrow();
   input.addEventListener('keydown', e => {
     if (isComposing(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(input.value); }
@@ -180,6 +189,7 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     if (!p) { toast('Select some text, or choose Whole document.', { icon: 'info' }); return; }
     if (p.text.length > MAX_ASSISTANT_CHARS) { toast('That is more text than the assistant takes at once. Select a shorter passage.', { icon: 'alert' }); return; }
     input.value = '';
+    autoGrow();
     message('me', el('p', {}, request), el('p.as-sent', {}, scope === 'selection' ? `With ${plural(words(p.text), 'selected word')}` : 'With the whole document'));
     // Avec des images, le message part en contenu multimodal ; sinon, une simple chaîne.
     const prompt = assistantPrompt({ request, text: p.text, scope: p.scope, history });

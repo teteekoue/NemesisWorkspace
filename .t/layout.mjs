@@ -80,5 +80,31 @@ const widths = {
 };
 check('les trois panneaux ont une largeur proche', Math.max(...Object.values(widths).map(Number)) - Math.min(...Object.values(widths).map(Number)) <= 30, JSON.stringify(widths));
 
+// 4. Les mesures du panneau : une en-tête compacte et un champ de deux lignes.
+//    L'en-tête prenait 44 px (documents) et 49 px (présentation) ; il prend
+//    la hauteur de la barre de menus (34 px) partout.
+const headHeight = (css) => {
+  // « height:34px » ou la variable de la barre de menus, qui vaut 34 px.
+  const rule = /\.(?:ai-head|as-pane \.canvas-panel-heading)\s*\{[^}]*\}/.exec(css);
+  if (!rule) return null;
+  const px = /height:\s*(\d+)px/.exec(rule[0]);
+  if (px) return Number(px[1]);
+  return /height:\s*var\(--(?:editor-)?menubar-h/.test(rule[0]) ? 34 : null;
+};
+const inputBox = (css) => {
+  const rule = /\.(?:ai-input|as-input)\s*\{[^}]*\}/.exec(css);
+  const min = rule && /min-height:\s*(?:calc\(([\d.]+)em[^)]*\)|(\d+)px)/.exec(rule[0]);
+  const minPx = min ? (min[2] ? Number(min[2]) : Math.round(Number(min[1]) * 14)) : null;
+  const max = rule && /max-height:\s*(\d+)px/.exec(rule[0]);
+  return { min: minPx, max: max ? Number(max[1]) : null };
+};
+for (const [app, css] of [['documents', documents], ['spreadsheet', spreadsheet], ['presentation', cssOf('presentation')]]) {
+  const h = headHeight(css);
+  check(`${app} : en-tête de 34 px`, h === 34, `mesuré ${h}`);
+  const box = inputBox(css);
+  check(`${app} : champ de deux lignes (min ≤ 44 px)`, box.min != null && box.min <= 44, JSON.stringify(box));
+  check(`${app} : champ plafonné à 128 px`, box.max === 128, JSON.stringify(box));
+}
+
 console.log(`\n${pass} réussite(s), ${fails.length} échec(s)`);
 if (fails.length) { console.log('Échecs :', fails.join(', ')); process.exit(1); }
