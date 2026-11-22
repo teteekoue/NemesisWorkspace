@@ -152,7 +152,10 @@ jobs:
             -Pnemesis.versionCode="${VERSION_CODE}" \
             assembleRelease 2>&1 | tee /tmp/gradle.log
           # Le détail de lint, s'il a bloqué la construction.
-          find app/build/reports -name '*.txt' -o -name '*.html' 2>/dev/null | head -5
+          # Le détail de lint, s'il a bloqué la construction.
+          if [ -f app/build/reports/lint-results-release.txt ]; then
+            sed -n '/Lint Report/,$p' app/build/reports/lint-results-release.txt | head -80 | tee /tmp/lint.txt
+          fi
           find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
 
       - name: Vérifier chaque paquet
@@ -234,8 +237,9 @@ jobs:
           {
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
-            for f in /tmp/build.log /tmp/gradle.log; do
+            for f in /tmp/build.log /tmp/gradle.log /tmp/lint.txt; do
               [ -f "$f" ] || continue
+              echo "**$f**"
               echo "\`\`\`"
               # Les lignes qui expliquent l'échec, pas la pile d'appels.
               grep -E "^e: |error:|Error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed|severity|Lint found|^ *[0-9]+ +[a-z]" "$f" | tail -n 60 || true
