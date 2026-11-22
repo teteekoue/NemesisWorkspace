@@ -329,7 +329,8 @@ jobs:
           {
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
-            [ -f /tmp/verify.log ] && { echo "**vérifications**"; echo '```'; tail -n 40 /tmp/verify.log; echo '```'; }
+            [ -f /tmp/verify.log ] && { echo "**vérifications**"; echo '```'; tail -n 15 /tmp/verify.log; echo '```'; }
+            [ -f /tmp/emulator.log ] && { echo "**émulateur**"; echo '```'; tail -n 30 /tmp/emulator.log; echo '```'; }
             for f in /tmp/android-build.log; do
               [ -f "$f" ] || continue
               echo "\`\`\`"
