@@ -296,16 +296,24 @@ jobs:
           grep "interface prête" verification/journal.txt || fail "l'interface n'a pas signalé son affichage"
           python3 - <<'PYEOF'
           import json, re, sys
-          line = [l for l in open('verification/journal.txt') if 'interface prête' in l][-1]
-          payload = json.loads(re.search(r'interface prête: (\{.*\})', line).group(1))
-          print('Rapport de l\'application :', payload)
-          if payload.get('error'):
+          lines = [l for l in open('verification/journal.txt') if 'interface prête' in l]
+          raw = lines[-1].split('interface prête: ', 1)[1].strip()
+          # Le journal échappe les guillemets : on les rétablit.
+          raw = raw.replace('\\"', '"').strip()
+          if raw.startswith('"') and raw.endswith('"'):
+              raw = raw[1:-1]
+          report = json.loads(raw)
+          print("Rapport de l'application :", report)
+          if report.get('error'):
               sys.exit(1)
-          if not payload.get('title'):
-              print('::error::aucun titre : la page n\'a pas été rendue')
+          if not report.get('title'):
+              print("::error::aucun titre : la page n'a pas été rendue")
               sys.exit(1)
-          if payload.get('body', 0) < 40:
-              print('::error::écran presque vide')
+          if report.get('root', 0) < 1:
+              print("::error::l'interface n'a rien monté dans la page")
+              sys.exit(1)
+          if report.get('body', 0) < 40:
+              print("::error::écran presque vide")
               sys.exit(1)
           PYEOF
           # Et ce qu'on voit : un écran uni signalerait une page blanche.

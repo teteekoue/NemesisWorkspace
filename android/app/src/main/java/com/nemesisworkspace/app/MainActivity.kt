@@ -214,7 +214,8 @@ class MainActivity : AppCompatActivity() {
                         "const cards=document.querySelectorAll('.tile,.card,.app-tile,[data-kind]').length;" +
                         "return JSON.stringify({title:document.title,lang:document.documentElement.lang," +
                         "width:Math.round(window.innerWidth),height:Math.round(window.innerHeight)," +
-                        "cards:cards,body:document.body.innerText.trim().length});" +
+                        "cards:cards,body:document.body.innerText.trim().length," +
+                        "root:(document.getElementById('root')||{childElementCount:0}).childElementCount});" +
                         "}catch(e){return JSON.stringify({error:String(e)});}})()",
                 ) { report ->
                     Log.i(TAG, "interface prête: $report")
