@@ -445,7 +445,7 @@ class MainActivity : AppCompatActivity() {
         val files = JSONArray()
         for (uri in uris) {
             try {
-                val name = displayName(uri) ?: "fichier"
+                val name = displayName(uri) ?: defaultName(uri)
                 val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
                 files.put(
                     JSONObject()
@@ -488,6 +488,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val pendingBytes = AtomicReference<ByteArray>(ByteArray(0))
+
+    /**
+     * Un nom pour un fichier sans nom : le type déclaré par le fournisseur
+     * donne son extension, sinon le nom reste générique mais valide.
+     */
+    private fun defaultName(uri: Uri): String {
+        val extension = mimeTypeOf(uri)?.substringAfterLast('/')
+            ?.let { if (it == "jpeg") "jpg" else it }
+            ?.takeIf { it.length in 2..5 && it.all(Char::isLetterOrDigit) }
+        return if (extension != null) "fichier.$extension" else "fichier"
+    }
+
+    private fun mimeTypeOf(uri: Uri): String? =
+        try {
+            contentResolver.getType(uri)
+        } catch (error: Exception) {
+            null
+        }
 
     private fun displayName(uri: Uri): String? {
         var name: String? = null

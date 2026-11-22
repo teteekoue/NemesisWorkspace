@@ -87,16 +87,19 @@ jobs:
       - name: Embarquer l'interface dans l'application
         run: |
           set -euo pipefail
-          rm -rf android/app/src/main/assets/www
-          mkdir -p android/app/src/main/assets/www
-          cp -R src/nemesis-workspace/dist/. android/app/src/main/assets/www/
-          test -f android/app/src/main/assets/www/index.html
+          # La racine de `assets/` est celle que l'application sert à
+          # l'adresse https://appassets.androidplatform.net/ : l'interface s'y
+          # trouve donc directement, et toutes ses adresses relatives
+          # fonctionnent telles quelles.
+          rm -rf android/app/src/main/assets/*
+          cp -R src/nemesis-workspace/dist/. android/app/src/main/assets/
+          test -f android/app/src/main/assets/index.html
           # Aucune référence à une origine distante ne doit subsister.
-          if grep -rlE 'https?://(localhost|127\.0\.0\.1):(4200|4310|5173)' android/app/src/main/assets/www; then
+          if grep -rlE 'https?://(localhost|127\.0\.0\.1):(4200|4310|5173)' android/app/src/main/assets; then
             echo "::error::L'interface embarque une adresse de développement."
             exit 1
           fi
-          du -sh android/app/src/main/assets/www
+          du -sh android/app/src/main/assets
 
       - name: Installer Java
         uses: actions/setup-java@v4
@@ -189,10 +192,10 @@ jobs:
             unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u > "verification/$name.abis.txt" || true
             echo "   architectures : $(tr '\n' ' ' < "verification/$name.abis.txt")"
             # 4. L'interface est embarquée, en entier.
-            unzip -l "$apk" | grep -q 'assets/www/index.html' || fail "$name : interface absente"
-            unzip -l "$apk" | grep -q 'assets/www/documents/index.html' || fail "$name : éditeur de documents absent"
-            unzip -l "$apk" | grep -q 'assets/www/spreadsheet/index.html' || fail "$name : tableur absent"
-            unzip -l "$apk" | grep -q 'assets/www/presentation/index.html' || fail "$name : présentations absentes"
+            unzip -l "$apk" | grep -q 'assets/index.html' || fail "$name : interface absente"
+            unzip -l "$apk" | grep -q 'assets/documents/index.html' || fail "$name : éditeur de documents absent"
+            unzip -l "$apk" | grep -q 'assets/spreadsheet/index.html' || fail "$name : tableur absent"
+            unzip -l "$apk" | grep -q 'assets/presentation/index.html' || fail "$name : présentations absentes"
             # 5. Empreinte et taille, publiées avec les paquets.
             sha256sum "$apk" | tee "verification/$name.sha256"
             stat -c '%s' "$apk" > "verification/$name.size"
