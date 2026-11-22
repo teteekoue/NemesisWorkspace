@@ -253,11 +253,10 @@ jobs:
 
           # Sans accélération matérielle, le démarrage dépasse le délai : le
           # runner qui la permet est demandé, et son état est vérifié.
-          if [ ! -e /dev/kvm ]; then
-            sudo chmod 666 /dev/kvm 2>/dev/null || true
-          fi
           [ -e /dev/kvm ] || fail "le noyau de la machine ne fournit pas KVM"
-          sudo usermod -aG kvm "$USER" 2>/dev/null || true
+          # Le groupe kvm n'est pas encore effectif dans cette session : l'accès
+          # est ouvert au processus de construction, et à lui seul.
+          sudo chmod 666 /dev/kvm
           ls -l /dev/kvm
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" "$ANDROID_HOME/emulator/emulator" -avd nemesis -no-window -no-audio -no-boot-anim \
             -gpu swiftshader_indirect -no-snapshot > /tmp/emulator.out 2>&1 &
@@ -269,7 +268,12 @@ jobs:
             [ "$boot" = "1" ] && break
             sleep 4
           done
-          [ "${boot:-}" = "1" ] || { tail -30 /tmp/emulator.out; fail "l'émulateur n'a pas démarré"; }
+          if [ "${boot:-}" != "1" ]; then
+            echo "--- sortie de l'émulateur"
+            tail -40 /tmp/emulator.out
+            "$ANDROID_HOME/platform-tools/adb" devices -l || true
+            fail "l'émulateur n'a pas démarré"
+          fi
           ADB="$ANDROID_HOME/platform-tools/adb"
           echo "Émulateur prêt : $($ADB shell getprop ro.product.cpu.abi)"
 
