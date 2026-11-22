@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NemesisWorkspace</string>
+    <string name="app_description">Documents, feuilles de calcul et présentations, hors ligne.</string>
+    <string name="file_provider_label">Fichiers NemesisWorkspace</string>
+</resources>

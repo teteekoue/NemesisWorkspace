@@ -1,0 +1,21 @@
+# Produits de compilation
+*.iml
+.gradle/
+local.properties
+.idea/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Clé de signature : jamais dans le dépôt.
+keystore.properties
+*.jks
+*.keystore
+
+# L'interface compilée est copiée ici par la construction, à partir de
+# src/nemesis-workspace/dist (lui-même produit par dev/build-all.mjs).
+app/src/main/assets/www/
+*.p12
+keystore/
+*.pass

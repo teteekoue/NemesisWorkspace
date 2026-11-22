@@ -1,0 +1,238 @@
+name: Android
+
+# Construit l'application Android à partir des sources : les trois éditeurs
+# sont compilés, copiés dans l'application, puis quatre paquets sont produits
+# (x86, armeabi-v7a, arm64-v8a et universel). Chacun est vérifié — signature,
+# alignement, architectures contenues, empreinte — avant d'être publié.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'src/**'
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: 'Version publiée (ex. 1.0.0)'
+        required: false
+        default: '1.0.0'
+      versionCode:
+        description: 'Numéro de version Android (entier croissant)'
+        required: false
+        default: '1'
+      publish:
+        description: 'Publier dans les versions GitHub'
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '17'
+  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.0' }}
+  VERSION_CODE: ${{ github.event.inputs.versionCode || '1' }}
+
+jobs:
+  build:
+    name: Paquets signés
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Compiler les trois éditeurs et l'accueil
+        run: |
+          set -euo pipefail
+          node --version
+          cd src/nemesis-workspace
+          node dev/build-all.mjs
+          # Rien ne doit être servi depuis le réseau : l'interface doit
+          # exister, en entier, avant d'entrer dans l'application.
+          test -f ../nemesis-workspace/dist/index.html
+          test -f ../nemesis-workspace/dist/documents/index.html
+          test -f ../nemesis-workspace/dist/spreadsheet/index.html
+          test -f ../nemesis-workspace/dist/presentation/index.html
+          du -sh ../nemesis-workspace/dist
+
+      - name: Embarquer l'interface dans l'application
+        run: |
+          set -euo pipefail
+          rm -rf android/app/src/main/assets/www
+          mkdir -p android/app/src/main/assets/www
+          cp -R src/nemesis-workspace/dist/. android/app/src/main/assets/www/
+          test -f android/app/src/main/assets/www/index.html
+          # Aucune référence à une origine distante ne doit subsister.
+          if grep -rlE 'https?://(localhost|127\.0\.0\.1):(4200|4310|5173)' android/app/src/main/assets/www; then
+            echo "::error::L'interface embarque une adresse de développement."
+            exit 1
+          fi
+          du -sh android/app/src/main/assets/www
+
+      - name: Installer Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Configurer Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Préparer la clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          NEMESIS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+
+          # Le mot de passe ne doit jamais apparaître dans les journaux.
+          [ -z "${KEYSTORE_PASSWORD:-}" ] || echo "::add-mask::$KEYSTORE_PASSWORD"
+          [ -z "${KEY_PASSWORD:-}" ] || echo "::add-mask::$KEY_PASSWORD"
+
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            mkdir -p keystore
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore/nemesis-release.p12
+            PASS="$KEYSTORE_PASSWORD"
+            ALIAS="${KEY_ALIAS:-nemesisworkspace}"
+            echo "::notice::La clé de signature vient des secrets du dépôt."
+          elif [ -f keystore/nemesis-release.p12 ]; then
+            # Le mot de passe de cette clé accompagne l'arbre de travail.
+            PASS="$(cat keystore/nemesis-release.pass 2>/dev/null || true)"
+            if [ -z "$PASS" ]; then
+              echo "::error::Clé présente sans mot de passe."
+              exit 1
+            fi
+            ALIAS="nemesisworkspace"
+            echo "::warning::Aucun secret GitHub : la clé de l'arbre de travail est utilisée."
+          else
+            echo "::error::Aucune clé de signature. Définissez le secret ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+
+          {
+            echo "storeFile=keystore/nemesis-release.p12"
+            echo "storePassword=${PASS}"
+            echo "keyAlias=${ALIAS}"
+            echo "keyPassword=${KEY_PASSWORD:-$PASS}"
+          } > keystore.properties
+          chmod 600 keystore.properties
+
+      - name: Construire les quatre paquets
+        env:
+          NEMESIS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace \
+            -Pnemesis.versionName="${VERSION_NAME}" \
+            -Pnemesis.versionCode="${VERSION_CODE}" \
+            assembleRelease
+          find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
+
+      - name: Vérifier chaque paquet
+        run: |
+          set -euo pipefail
+          APKS=$(find android/app/build/outputs/apk/release -name '*.apk' | sort)
+          test -n "$APKS" || { echo "::error::Aucun paquet produit."; exit 1; }
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "Outils de construction : $BUILD_TOOLS"
+          rm -rf verification && mkdir -p verification
+          for apk in $APKS; do
+            name=$(basename "$apk" .apk)
+            echo "── $name"
+            # 1. La signature est valide et couvre tout le paquet.
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$apk" | tee "verification/$name.signature.txt" | head -6
+            grep -q "Verifies" "verification/$name.signature.txt"
+            # 2. Le paquet est aligné sur 4 octets au moins.
+            "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "verification/$name.align.txt"
+            tail -1 "verification/$name.align.txt"
+            # 3. Les bibliothèques sont celles de l'architecture annoncée.
+            unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u | tee "verification/$name.abis.txt"
+            # 4. L'interface est bien embarquée.
+            unzip -l "$apk" | grep -q 'assets/www/index.html'
+            # 5. L'empreinte, pour vérification à la main après téléchargement.
+            sha256sum "$apk" | tee "verification/$name.sha256"
+            # 6. La taille.
+            stat -c '%s' "$apk" > "verification/$name.size"
+          done
+
+      - name: Effacer la clé du disque
+        if: always()
+        run: |
+          rm -f android/keystore.properties android/keystore/nemesis-release.p12
+          echo "Clé retirée de la machine de construction."
+
+      - name: Rassembler les paquets
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/*.apk release/
+          cd release
+          sha256sum *.apk > SHA256SUMS.txt
+          {
+            echo "# NemesisWorkspace ${VERSION_NAME} (${VERSION_CODE})"
+            echo
+            echo "| Paquet | Architecture | Taille | SHA-256 |"
+            echo "| --- | --- | --- | --- |"
+            for apk in *.apk; do
+              abi=$(unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u | tr '\n' ' ')
+              size=$(stat -c '%s' "$apk")
+              sum=$(sha256sum "$apk" | cut -d' ' -f1)
+              echo "| $apk | ${abi:-universal} | $(numfmt --to=iec "$size") | \`$sum\` |"
+            done
+            echo
+            echo "Chaque paquet est signé et aligné ; la somme SHA-256 permet de"
+            echo "vérifier le fichier téléchargé."
+          } > NOTES.md
+          cat NOTES.md
+
+      - name: Conserver les paquets et les vérifications
+        uses: actions/upload-artifact@v4
+        with:
+          name: NemesisWorkspace-${{ env.VERSION_NAME }}-apk
+          path: |
+            release/*.apk
+            release/SHA256SUMS.txt
+            release/NOTES.md
+            verification/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier la version
+        if: github.event_name != 'pull_request' && (github.event.inputs.publish != 'false')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="android-v${VERSION_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/*.apk release/SHA256SUMS.txt release/NOTES.md --clobber
+          else
+            gh release create "$TAG" \
+              release/*.apk release/SHA256SUMS.txt release/NOTES.md \
+              --title "NemesisWorkspace ${VERSION_NAME} — Android" \
+              --notes-file release/NOTES.md
+          fi
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) octets"'

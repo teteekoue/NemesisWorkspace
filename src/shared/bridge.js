@@ -24,9 +24,21 @@
 
 const host = () => (typeof window !== 'undefined' ? window.NemesisHost : null);
 
+/**
+ * Une valeur de l'hôte, qu'elle soit exposée comme propriété (objet JS) ou
+ * comme méthode (`@JavascriptInterface` côté Android n'expose que des
+ * méthodes : `isNative()` et non `isNative`). Les deux formes se lisent ici.
+ */
+function value(name) {
+  const native = host();
+  if (!native) return undefined;
+  const found = native[name];
+  return typeof found === 'function' ? found.call(native) : found;
+}
+
 export function isNative() {
   try {
-    return !!host()?.isNative;
+    return !!value('isNative');
   } catch {
     return false;
   }
@@ -34,7 +46,7 @@ export function isNative() {
 
 export function platform() {
   try {
-    return host()?.platform || 'web';
+    return value('platform') || 'web';
   } catch {
     return 'web';
   }
@@ -42,7 +54,7 @@ export function platform() {
 
 export function hostVersion() {
   try {
-    return host()?.version || '';
+    return value('version') || '';
   } catch {
     return '';
   }

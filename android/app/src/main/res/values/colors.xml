@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nemesis_background">#0A011E</color>
+    <color name="nemesis_surface">#0F0A26</color>
+    <color name="nemesis_accent">#6C7BFF</color>
+    <color name="nemesis_status_bar">#0A011E</color>
+</resources>
