@@ -25,11 +25,11 @@ export function signInView({ title, message, onSignIn, onSkip }) {
     type: 'button',
     onclick: async () => {
       cta.disabled = true;
-      cta.textContent = 'Waiting for Puter';
+      cta.textContent = 'Waiting';
       try { await onSignIn(); }
-      finally { cta.disabled = false; cta.textContent = 'Sign in to Puter'; }
+      finally { cta.disabled = false; cta.textContent = 'Start'; }
     },
-  }, 'Sign in to Puter');
+  }, 'Start');
   return el('div.auth-view.view', {},
     el('div.auth-card', {},
       el('div.empty-icon', { html: icon('lock', 28) }),

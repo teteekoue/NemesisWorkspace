@@ -191,14 +191,10 @@ export function openLocaleDialog() {
   return modal;
 }
 
-const COMPANY = 'Puter Technologies Inc.';
+const COMPANY = 'NemesisWorkspace';
 
 /** Puter's own pages, for the row of links under the description. */
-const ABOUT_LINKS = [
-  ['appmenu.links.website', 'https://puter.com'],
-  ['appmenu.links.privacy', 'https://puter.com/privacy'],
-  ['appmenu.links.terms', 'https://puter.com/terms'],
-];
+const ABOUT_LINKS = [];
 
 /**
  * The open-source work the app is built on, each with the license it came under. Every license is shipped

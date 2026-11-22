@@ -75,7 +75,7 @@ export async function prepareCall(puter, server, input) {
 export async function deploy(puter, progress = () => {}, fetchBundle = defaultBundle) {
   if (puter.collabDevServer) return puter.collabDevServer;
   const account = puter.authToken;
-  const check = () => { if (puter.authToken !== account) throw new Error('Your Puter account changed. Try again.'); };
+  const check = () => { if (puter.authToken !== account) throw new Error('Your account changed. Try again.'); };
   let config = await puter.kv.get(WORKER_KEY);
   check();
   progress('Preparing the collaboration server…');

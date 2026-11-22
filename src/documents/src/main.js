@@ -128,7 +128,7 @@ function leaveDialog(doc, { unsaveable = false, undelivered = false } = {}) {
   if (unsaveable) {
     return confirmDialog({
       title: LEAVE_TITLES[0],
-      message: `This document could not be opened for editing, so it has not been saved to Puter. ${doc.blob ? 'Stay to download a copy, or leave without it.' : 'Leave without it?'}`,
+      message: `This document could not be opened for editing, so it has not been saved to this device. ${doc.blob ? 'Stay to download a copy, or leave without it.' : 'Leave without it?'}`,
       confirmLabel: 'Leave without saving', cancelLabel: 'Stay',
     }).then((leave) => (leave ? 'leave' : 'stay'));
   }
@@ -148,7 +148,7 @@ function leaveDialog(doc, { unsaveable = false, undelivered = false } = {}) {
   }
   return new Promise((resolve) => {
     const content = el('div', {},
-      el('p.modal-text', {}, 'This document is not saved anywhere yet. Sign in to Puter to save it to your own cloud, or leave and discard it.'),
+      el('p.modal-text', {}, 'This document is not saved anywhere yet. Save it to your own cloud, or leave and discard it.'),
       el('div.row.row-end', { style: { flexWrap: 'wrap' } },
         el('button.btn.btn-ghost', { type: 'button', onclick: () => modal.close() }, 'Keep editing'),
         el('button.btn.btn-danger', { type: 'button', onclick: () => { resolve('leave'); modal.close(); } }, 'Leave without saving'),
@@ -422,7 +422,7 @@ async function openInvitation(link, requestedHash) {
  */
 async function start() {
   if (!P.hasSDK()) {
-    appRoot.replaceChildren(errorView('Could not reach Puter', 'The Puter SDK failed to load. Check your connection and try again.', () => location.reload()));
+    appRoot.replaceChildren(errorView('Local storage unavailable', 'The local storage layer failed to load. Reload the app.', () => location.reload()));
     return;
   }
   P.onLaunchedWithItems((items) => {

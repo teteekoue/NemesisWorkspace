@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import puterLocalhost from '../../dev/puter-localhost.mjs';
+import nemesisShared from '../../dev/nemesis-shared.mjs';
 
 export default defineConfig({
-  plugins: [puterLocalhost('spreadsheet')],
+  plugins: [nemesisShared(), puterLocalhost('spreadsheet')],
   base: './',
   build: {
     target: 'es2022',

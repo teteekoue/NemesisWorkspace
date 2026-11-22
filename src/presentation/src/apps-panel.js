@@ -1,7 +1,6 @@
-// The Apps launcher: a 3×3 grid button just left of the account button that
-// opens a panel showing the person's Puter apps (puter.com/embed/apps) in an
-// iframe, under a caret pointing at the button. Offered on the web only:
-// inside a Puter app window the desktop has its own launcher.
+// The Apps launcher used to open a panel of the person's Puter apps in an
+// iframe. NemesisWorkspace keeps one suite only, and nothing may reach
+// puter.com, so `appsButton()` now returns null and the panel is never built.
 //
 // The panel lives on <body>, so the home screen and the editor share it. It is
 // built on first open and then only hidden, so reopening keeps the embed's
@@ -11,8 +10,12 @@ import { el, icon, closeMenu } from "./ui.js";
 import { isApp } from "./cloud.js";
 import { hasUserMenu } from "./user-menu.js";
 
-export const APPS_EMBED_URL = "https://puter.com/embed/apps";
-export const APPS_NEWTAB_URL = "https://puter.com/#apps";
+// NemesisWorkspace : les autres applications de l'écosystème ne font plus
+// partie du produit, et rien ne doit plus appeler puter.com. Le panneau est
+// donc retiré de l'interface ; les adresses restent déclarées pour que les
+// modules qui les importent se chargent sans erreur.
+export const APPS_EMBED_URL = "";
+export const APPS_NEWTAB_URL = "";
 
 let panel = null;
 let frame = null;
@@ -51,7 +54,9 @@ function gridIcon() {
  * <puter-user-menu> has its own.
  */
 export function appsButton(cls = "") {
-  if (isApp() || hasUserMenu()) return null;
+  // NemesisWorkspace : aucun lanceur d'applications tierces sur le web.
+  void cls;
+  return null;
   const control = el(
     "button",
     {
@@ -129,13 +134,13 @@ function build() {
       target: "_blank",
       rel: "noopener noreferrer",
       title: "Open in a new tab",
-      "aria-label": "Open Puter apps in a new tab",
+      "aria-label": "Open apps in a new tab",
     },
     icon("ExternalLink", 16),
   );
   frame = el("iframe", {
     class: "apps-frame",
-    title: "Your Puter apps",
+    title: "Your apps",
     referrerpolicy: "strict-origin-when-cross-origin",
     allow: "clipboard-read; clipboard-write",
   });

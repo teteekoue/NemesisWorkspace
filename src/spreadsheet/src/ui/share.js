@@ -1,5 +1,5 @@
 /**
- * Share dialog: give other Puter users a spreadsheet to view or edit, by
+ * Share dialog: give other Users a spreadsheet to view or edit, by
  * username or email address, see who can reach it, change or withdraw their
  * access, and copy a link that opens it for them.
  */

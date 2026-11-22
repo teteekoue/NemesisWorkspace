@@ -17,8 +17,8 @@ const tooLarge = () => new Error('Images must be under 15 MB');
  */
 export function generationError(e) {
   const detail = `${e?.message || ''} ${e?.error?.message || ''} ${e?.error?.code || e?.code || ''} ${typeof e === 'string' ? e : ''}`;
-  const message = /insufficient|balance|credit|funds|quota|allowance|402/i.test(detail) ? 'Your Puter AI allowance has run out for now.'
-    : /sign.?in|unauthori[sz]ed|401/i.test(detail) ? 'Sign in to Puter to generate pictures.'
+  const message = /insufficient|balance|credit|funds|quota|allowance|402/i.test(detail) ? 'The AI allowance has run out for now.'
+    : /sign.?in|unauthori[sz]ed|401/i.test(detail) ? 'Start to generate pictures.'
       : /network|failed to fetch|offline|timed? ?out/i.test(detail) ? 'The AI service could not be reached. Check your connection.'
         : /moderat|safety|content.?policy|flagged|inappropriate/i.test(detail) ? 'That description cannot be made into a picture. Try describing it differently.'
           : 'The picture could not be generated. Try again in a moment.';

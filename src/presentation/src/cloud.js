@@ -3,7 +3,7 @@ export const FOLDER = "Presentations";
 const sdk = () => {
   if (!globalThis.puter)
     throw new Error(
-      "Puter is unavailable. Check your connection and try again.",
+      "Local storage is unavailable. Try again.",
     );
   return globalThis.puter;
 };
@@ -35,12 +35,12 @@ export async function signIn() {
       });
     if (error?.error === "popup_blocked")
       throw new Error(
-        "The browser blocked the Puter sign-in window. Allow pop-ups for this site and try again.",
+        "The browser blocked the sign-in window. Allow pop-ups for this site and try again.",
         { cause: error },
       );
     if (error instanceof Error) throw error;
     throw new Error(
-      error?.msg || error?.message || "Puter sign-in failed. Please try again.",
+      error?.msg || error?.message || "Sign-in failed. Please try again.",
       { cause: error },
     );
   }
@@ -222,6 +222,15 @@ export function oneDialog(key, open) {
 // desktop) arrives through this, as soon as it is registered. Every item is
 // handed on, so a folder or another kind of file can be explained.
 export function onLaunch(handler) {
+  // Launched from the workspace: the file is named in the address
+  // ("?open=Presentations/…"), so no host is needed to open it.
+  try {
+    const asked = new URLSearchParams(location.search).get("open");
+    if (asked) {
+      handler([{ path: asked, name: displayName(asked), isAppLaunch: true }]);
+      return;
+    }
+  } catch {}
   try {
     globalThis.puter?.ui?.onLaunchedWithItems?.((items) => {
       const list = (Array.isArray(items) ? items : [items]).filter(Boolean);

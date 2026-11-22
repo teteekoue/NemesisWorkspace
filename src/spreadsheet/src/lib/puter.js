@@ -457,7 +457,7 @@ export async function saveFileAs(blob, suggestedName) {
 
 /* ---------- Sharing ---------- */
 
-// A file is shared with other Puter users by name or email address, to read or to edit. Opening one
+// A file is shared with other Users by name or email address, to read or to edit. Opening one
 // to anyone with a link is the owner's own call on Puter, never an app's, so it is not offered here;
 // a link share the owner made there is listed, as whoever else can reach the file is.
 

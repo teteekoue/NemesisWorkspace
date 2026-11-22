@@ -6,10 +6,16 @@
  */
 import { normalizeScripts, serializeScripts } from './scripts.js';
 
-export const SCRIPTS_RELATIONSHIP = 'https://puter.com/spreadsheet/relationships/scripts';
-export const SCRIPTS_PART = '/puter/scripts.json';
-export const SCRIPTS_CONTENT_TYPE = 'application/vnd.puter.spreadsheet.scripts+json';
-const FORMAT = 'puter-spreadsheet-scripts';
+// NemesisWorkspace : l'identifiant est propre à l'application. Un tableur qui
+// ne connaît pas ce type de relation ignore simplement la partie, comme
+// l'exige le format OOXML ; les classeurs écrits avant ce changement (marqués
+// « https://puter.com/… ») restent lisibles via les marqueurs ci-dessous.
+export const SCRIPTS_RELATIONSHIP = 'https://nemesisworkspace.app/spreadsheet/relationships/scripts';
+const LEGACY_RELATIONSHIPS = ['https://puter.com/spreadsheet/relationships/scripts'];
+export const SCRIPTS_PART = '/nemesis/scripts.json';
+export const SCRIPTS_CONTENT_TYPE = 'application/vnd.nemesisworkspace.spreadsheet.scripts+json';
+const FORMAT = 'nemesisworkspace-spreadsheet-scripts';
+const LEGACY_FORMATS = ['puter-spreadsheet-scripts'];
 
 const escapeAttr = (text) => String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -21,8 +27,8 @@ export function writeXlsxScripts(wb, { get, set, contentType }) {
   const rels = get('/_rels/.rels');
   if (!rels || rels.includes(SCRIPTS_RELATIONSHIP)) return;
   const taken = new Set([...rels.matchAll(/\bId="([^"]*)"/g)].map((m) => m[1]));
-  let id = 'rIdPuterScripts';
-  for (let n = 2; taken.has(id); n++) id = `rIdPuterScripts${n}`;
+  let id = 'rIdNemesisScripts';
+  for (let n = 2; taken.has(id); n++) id = `rIdNemesisScripts${n}`;
   const rel = `<Relationship Id="${escapeAttr(id)}" Type="${SCRIPTS_RELATIONSHIP}" Target="${SCRIPTS_PART.slice(1)}"/>`;
   set('/_rels/.rels', rels.replace('</Relationships>', `${rel}</Relationships>`));
 }
@@ -38,14 +44,15 @@ export function readXlsxScripts(files) {
   const rels = text('_rels/.rels');
   let target = null;
   for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
-    if (!m[0].includes(`"${SCRIPTS_RELATIONSHIP}"`)) continue;
+    const marked = [SCRIPTS_RELATIONSHIP, ...LEGACY_RELATIONSHIPS].some((type) => m[0].includes(`"${type}"`));
+    if (!marked) continue;
     target = /\bTarget="([^"]*)"/.exec(m[0])?.[1] || null;
     break;
   }
   if (!target) return undefined;
   try {
     const data = JSON.parse(text(target.replace(/^\//, '')));
-    if (data?.format !== FORMAT || !Array.isArray(data.scripts)) return undefined;
+    if (![FORMAT, ...LEGACY_FORMATS].includes(data?.format) || !Array.isArray(data.scripts)) return undefined;
     return normalizeScripts(data.scripts);
   } catch {
     return undefined;

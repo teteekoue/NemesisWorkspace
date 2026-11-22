@@ -1,6 +1,6 @@
 /**
  * The Apps launcher: a 3×3 grid button just left of the account button that opens a panel showing the person's
- * Puter apps (puter.com/embed/apps) in an iframe, under a caret pointing at the button. Offered on the web only:
+ * an iframe, under a caret pointing at the button. NemesisWorkspace keeps one suite
  * inside a Puter app window the desktop already has its own launcher.
  *
  * The panel lives on <body>, so the home screen and the editor share it and a view change can't tear it down.
@@ -18,8 +18,11 @@ import * as P from '../lib/puter.js';
 import { hasUserMenu } from './user-menu.js';
 import { t } from '../i18n/index.js';
 
-export const APPS_EMBED_URL = 'https://puter.com/embed/apps';
-export const APPS_NEWTAB_URL = 'https://puter.com/#apps';
+// NemesisWorkspace : plus aucun service Puter. Le lanceur d'applications
+// tierces n'est plus proposé ; l'adresse reste déclarée, vide, pour les
+// modules qui l'importent.
+export const APPS_EMBED_URL = '';
+export const APPS_NEWTAB_URL = '';
 
 // The classic "more apps" grid of nine dots.
 const GRID_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>';
@@ -35,6 +38,8 @@ const accountKey = () => (session.signedOut ? '' : session.user?.uuid || session
 
 /** The toolbar button, or null inside a Puter app window and where <puter-user-menu> has its own. */
 export function appsButton() {
+  // NemesisWorkspace : aucun lanceur d'applications tierces.
+  return null;
   if (P.isApp() || hasUserMenu()) return null;
   return el('button.icon-btn.apps-btn', {
     type: 'button', html: GRID_SVG, title: t('apps.title'), 'aria-label': t('apps.title'),
@@ -108,7 +113,7 @@ function build() {
   // Bound before src is set, so a fast (cached) load can't slip past.
   frame.addEventListener('load', () => body.classList.remove('is-loading'), { once: true });
   syncTheme();
-  frame.src = APPS_EMBED_URL;
+  if (APPS_EMBED_URL) frame.src = APPS_EMBED_URL;
   builtFor = accountKey();
   document.body.append(panel);
 }

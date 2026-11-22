@@ -34,7 +34,7 @@ export const RETRY_MS = 8000;
 /** The longest pause between retries of an autosave that keeps failing: they double from RETRY_MS up to this. */
 export const MAX_RETRY_MS = 5 * 60_000;
 export const UNTITLED = 'Untitled document';
-export const SIGN_IN_TO_SAVE = 'Sign in to Puter to save this document';
+export const SIGN_IN_TO_SAVE = 'Save this document';
 /** Save pressed without a connection: what happens to the changes, rather than the browser's "Failed to fetch". */
 export const OFFLINE_SAVE = 'You are offline. Your changes will save when you reconnect';
 export const OFFLINE_SAVE_MANUAL = 'You are offline. Save again when you reconnect';

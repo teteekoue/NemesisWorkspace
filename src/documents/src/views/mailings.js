@@ -355,7 +355,7 @@ export function createMailings({ editor, pkg, error, onChange = () => {}, markDi
   const recipientItems = () => [
     { label: 'Type a New List…', disabled: !ready(), onSelect: () => mm.typeNewList() },
     { label: 'Use an Existing List…', hint: 'CSV, TSV or Excel workbook', disabled: !ready(), onSelect: () => mm.useExistingList() },
-    ...(P.canPickFiles() ? [{ label: 'Choose from Puter…', disabled: !ready(), onSelect: () => mm.useExistingList({ cloud: true }) }] : []),
+    ...(P.canPickFiles() ? [{ label: 'Choose on this device…', disabled: !ready(), onSelect: () => mm.useExistingList({ cloud: true }) }] : []),
     ...(state().list ? [{ separator: true }, { label: 'Export List as CSV', onSelect: async () => { const { listToCsv } = await import('../lib/recipient-files.js'); P.downloadBlob(new Blob([listToCsv(state().list)], { type: 'text/csv' }), 'Recipients.csv'); } },
       { label: 'Remove Recipient List', disabled: !ready(), onSelect: () => { if (state().preview) { setState({ preview: false }); refreshPreview(); } setState({ list: null, mapping: {}, source: null, activeRecord: 1 }); } }] : []),
   ];

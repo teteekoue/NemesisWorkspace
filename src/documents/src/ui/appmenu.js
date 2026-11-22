@@ -57,7 +57,7 @@ export function openAppMenu(anchor, { extraItems = [], account = true } = {}) {
   ];
   if (account && !P.isApp()) {
     items.push({ separator: true });
-    if (session.signedOut) items.push({ label: 'Sign in to Puter', icon: 'login', hint: 'Save documents to your own cloud', onSelect: () => session.signIn() });
+    if (session.signedOut) items.push({ label: 'Start', icon: 'login', hint: 'Save documents to your own cloud', onSelect: () => session.signIn() });
     else items.push({ label: 'Sign out', icon: 'logout', onSelect: confirmSignOut });
   }
   opened = openMenu({ anchor, items: items.filter(Boolean), align: 'end', label: account ? 'Account' : 'Settings', minWidth: 250 });
@@ -134,7 +134,7 @@ export function openUnitsMenu(anchor) {
 export async function confirmSignOut() {
   const ok = await confirmDialog({
     title: 'Sign out?',
-    message: 'Your documents stay in your Puter account. Any unsaved change in an open document is saved first.',
+    message: 'Your documents stay on this device account. Any unsaved change in an open document is saved first.',
     confirmLabel: 'Sign out', danger: false,
   });
   if (!ok) return;
@@ -160,10 +160,9 @@ export function openAbout() {
   openModal({
     title: 'Documents',
     content: el('div', {},
-      el('p.modal-text', {}, 'A private word processor with an original canvas editor. Files are saved as .docx in your own Puter cloud.'),
+      el('p.modal-text', {}, 'Un traitement de texte privé, avec un éditeur de document original. Les fichiers sont enregistrés en .docx, sur votre appareil.'),
       el('p.modal-text', {}, 'This version supports text and paragraph formatting, selection, undo, and DOCX downloads. Advanced document features are not supported yet.'),
-      el('p.small.muted', {}, 'Built with vanilla JavaScript, Vite, Lucide icons, fflate, Noto Sans, and ',
-        el('a', { href: 'https://developer.puter.com', target: '_blank', rel: 'noopener' }, 'Puter'), '.'),
+      el('p.small.muted', {}, 'NemesisWorkspace — construit avec JavaScript, Vite, Lucide, fflate et Noto Sans, d\'après le travail open source du projet Everything (Puter).'),
       el('p.small.muted', {}, el('a', { href: `${import.meta.env.BASE_URL}licenses/THIRD_PARTY.txt`, target: '_blank', rel: 'noopener' }, 'Third-party licenses')),
       el('p.small.muted', { lang: 'ko' }, '본 제품은 한글과컴퓨터의 한글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.')),
   });

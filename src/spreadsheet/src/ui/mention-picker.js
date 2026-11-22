@@ -1,7 +1,7 @@
 /**
  * The people picker of a comment box: typing @ at the start of a word lists the people who can be mentioned
  * (the co-authors of a shared workbook, the people the file is shared with, the workbook's other commenters),
- * narrowed as more is typed; an email address or a Puter username typed in full is offered too. Choosing one
+ * narrowed as more is typed; an email address or a Username typed in full is offered too. Choosing one
  * (Enter, Tab or a click) writes "@Name " into the text and remembers the person, so the comment can say whom
  * it mentions when it is posted (findMentions in core/mentions.js).
  */

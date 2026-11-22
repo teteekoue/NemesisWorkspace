@@ -48,7 +48,7 @@ export function openCompareDialog({ mode = 'compare', editor, pkg, documentName,
       el('div.rv-actions', {},
         el('button.btn.btn-outline.btn-sm', { type: 'button', onclick: current }, 'This document'),
         el('button.btn.btn-outline.btn-sm', { type: 'button', onclick: () => fileInput.click() }, 'From device…'),
-        P.canPickFiles() ? el('button.btn.btn-outline.btn-sm', { type: 'button', onclick: fromPuter }, 'From Puter…') : null), fileInput) };
+        P.canPickFiles() ? el('button.btn.btn-outline.btn-sm', { type: 'button', onclick: fromPuter }, 'From this device…') : null), fileInput) };
   };
   const original = slot('original', 'Original document'), revised = slot('revised', 'Revised document');
   const label = el('input.input', { value: '', placeholder: combine ? 'Author of the revised copy' : 'Author of the revised document', 'aria-label': 'Label changes with' });

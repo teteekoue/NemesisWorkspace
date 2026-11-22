@@ -24,7 +24,7 @@ export function saveMasterSources(list) {
   return clean;
 }
 
-/** Merge the account's copy from Puter into this device's list (newer device edits win by tag). */
+/** Merge the account's copy from this device into this device's list (newer device edits win by tag). */
 export async function syncMasterSources() {
   let remote = [];
   try { remote = JSON.parse((await kvGet(KEY)) || '[]'); } catch { return loadMasterSources(); }

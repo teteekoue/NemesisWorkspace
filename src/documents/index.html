@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-  <title>Documents</title>
-  <meta name="description" content="A fast, private word processor. Real .docx files, saved to your own Puter cloud." />
-  <link rel="canonical" href="https://documents.puter.com/" />
+  <title>Documents — NemesisWorkspace</title>
   <meta name="theme-color" content="#375f91" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -26,14 +24,9 @@
       } catch {}
     })();
   </script>
-  <script src="https://js.puter.com/v2/" defer></script>
+    <!-- NemesisWorkspace : stockage local, IA configurable, aucun service distant. -->
+  <script type="module" src="/shared/local-sdk.js"></script>
   <script type="module" src="/src/main.js"></script>
-  <!-- Privacy-friendly analytics by Plausible -->
-  <script async src="https://plausible.io/js/pa-PBhWiJH87qay3hswwlfJa.js"></script>
-  <script>
-    window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-    plausible.init()
-  </script>
 </head>
 <body>
   <!-- Glass fills for the command icons (src/styles/command-icons.css): top-lit gradients whose stops are the

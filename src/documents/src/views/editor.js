@@ -759,7 +759,7 @@ export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromT
   const insertTab = tool('Insert tab', 'tab', () => engine?.insertTab(), { title: 'Insert tab (Tab)' });
   const exportButton = button('Download .docx', download, { disabled: true, className: 'btn btn-primary' });
   const printButton = button('Print / Save as PDF', printDocument, { disabled: true });
-  const saveButton = button('Save to Puter', save, { disabled: true });
+  const saveButton = button('Save', save, { disabled: true });
   const templateButton = button('Save as template…', saveTemplate, { disabled: true });
   // Choosing any other zoom leaves View → Multiple Pages.
   const singlePages = () => engine?.pages.classList.remove('is-multipage');
@@ -1059,7 +1059,7 @@ export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromT
       return recentFiles(withMade(folder, made), { exclude: doc.path }).map(f => ({ name: Doc.nameFor(f.path), path: f.path, when: relativeTime(f.modified) }));
     } : null,
     openRecent: path => openPath?.(path),
-    documentLocation: () => ({ location: local ? 'This device' : doc.path ? `Puter › ${doc.path.replace(/^(?:\/[^/]+|~)\//, '')}` : 'Puter (not saved yet)' }),
+    documentLocation: () => ({ location: local ? 'This device' : doc.path ? `Puter › ${doc.path.replace(/^(?:\/[^/]+|~)\//, '')}` : 'Not saved yet' }),
     autosaveEnabled: () => doc.autosave !== false,
     setAutosave: cloud ? on => { doc.setAutosave?.(on); updateStatus(); } : null,
     preferences: section => openPreferencesDialog(section),
@@ -1094,7 +1094,7 @@ export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromT
         { type: 'button', label: 'Language of the selection', hint: 'Mark text as another language, or exclude it from spelling.', action: 'Language…', run: () => statusBar?.openLanguageDialog() },
       ] },
       { id: 'saving', label: 'Save', controls: [
-        cloud ? { type: 'toggle', label: 'AutoSave', hint: 'Save every change to Puter as you work. When off, use Save (' + MOD_KEY + '+S).', get: () => doc.autosave !== false, set: on => { doc.setAutosave?.(on); updateStatus(); chrome.refresh(); } }
+        cloud ? { type: 'toggle', label: 'AutoSave', hint: 'Save every change to this device as you work. When off, use Save (' + MOD_KEY + '+S).', get: () => doc.autosave !== false, set: on => { doc.setAutosave?.(on); updateStatus(); chrome.refresh(); } }
           : { type: 'button', label: 'Documents on this device', hint: 'Changes stay in this tab until you download the document.', action: 'Download', run: download },
       ] },
       { id: 'view', label: 'View', controls: [
@@ -1765,7 +1765,7 @@ export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromT
       : doc.waitsForPlace ? ['Not saved yet', 'cloudOff', 'unsaved']
       : doc.dirty ? ['Unsaved changes', 'cloudOff', 'unsaved']
       : local ? ['On this device', 'monitor', 'local']
-      : doc.path ? ['Saved to Puter', 'cloud', 'saved'] : ['Not saved yet', 'cloud', 'unsaved'];
+      : doc.path ? ['Saved', 'cloud', 'saved'] : ['Not saved yet', 'cloud', 'unsaved'];
     renderStatus(label, name, state);
     if (label === 'Shared · open its file to save') status.title = 'You own this shared document. Changes made here are kept with it, and saved to its file when you open it from your documents';
     if (waiting >= 0) status.title = waiting ? `Offline: ${waiting === 1 ? 'a change is' : `${waiting} changes are`} waiting to reach the others` : 'Offline: the shared document cannot be reached';

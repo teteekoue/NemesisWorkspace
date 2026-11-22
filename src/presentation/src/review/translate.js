@@ -80,7 +80,7 @@ export function createTranslate(env, host) {
     }
     if (!aiAvailable()) {
       state.error =
-        "Translation needs Puter's AI, which is not available here.";
+        "Translation needs AI's AI, which is not available here.";
       host.refresh("translate");
       return;
     }

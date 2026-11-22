@@ -5,7 +5,7 @@
  * the workbook: the people the file is shared with, and the members of a shared workbook. Anyone who cannot is
  * offered a share (Can view or Can edit, as the Share dialog gives it) before being told; the user may also tell
  * them without sharing, or tell nobody. Then each is sent an email through the app's email worker (lib/mail.js)
- * with the comment, its cell and a link that opens the workbook at that cell. A Puter user known only by
+ * with the comment, its cell and a link that opens the workbook at that cell. A User known only by
  * username is written to at their Puter mailbox.
  *
  * Whoever has the workbook open sees a mention of them as it arrives (a comment from a co-author, through the

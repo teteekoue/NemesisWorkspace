@@ -13,7 +13,7 @@
  *   doc:<room>:meta                 owner, name, created, closed?, base file, schema
  *   doc:<room>:member:<uuid>        { uuid, username, role, joined }
  *   doc:<room>:invite:<sha256>      invitation link: { role, expires, createdBy }
- *   doc:<room>:named:<username>     invitation by Puter username: { role, expires }
+ *   doc:<room>:named:<username>     invitation by Username: { role, expires }
  *   doc:<room>:seq, doc:<room>:log:<n>   numbered accepted updates
  *   doc:<room>:cp                   checkpoint { seq, path } every 100 updates
  *   doc:<room>:presence:<session>   presence entry (expires)
@@ -130,7 +130,7 @@ export class RoomService {
   /* ---------- Requests ---------- */
 
   async call(user, input) {
-    if (!user?.uuid) fail(401, 'Sign in with Puter to continue.');
+    if (!user?.uuid) fail(401, 'Continue to open this workbook.');
     if (!input || typeof input !== 'object') fail(400, 'Invalid request.');
     const room = id(input.room);
     const op = input.op;
@@ -257,7 +257,7 @@ export class RoomService {
     }
     if (input.op === 'invite-user') {
       const name = typeof input.username === 'string' ? input.username.trim().replace(/^@/, '') : '';
-      if (!/^[A-Za-z0-9._-]{1,64}$/.test(name)) fail(400, 'Enter a Puter username.');
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(name)) fail(400, 'Enter a username.');
       const role = input.role ?? 'editor';
       if (!INVITE_ROLES.includes(role)) fail(400, 'Choose a role an invitation can give.');
       const expires = this.now() + days * DAY;

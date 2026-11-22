@@ -92,13 +92,13 @@ export function friendlyAiError(error) {
       both,
     )
   )
-    return "Your Puter AI allowance has run out for now.";
+    return "The AI allowance has run out for now.";
   if (
     /sign.?in|not signed|unauthori[sz]ed|\b401\b|auth(entication)? (required|failed)|auth_window_closed/i.test(
       both,
     )
   )
-    return "Sign in to Puter to use the assistant.";
+    return "Start to use the assistant.";
   if (
     /network|failed to fetch|offline|timed? ?out|ECONN|connection/i.test(text)
   )
@@ -454,7 +454,7 @@ export function createAssistantPanel(env) {
       el(
         "p",
         { class: "ai-privacy" },
-        "Your messages and the slides the assistant reads are sent to Puter’s AI service to answer them.",
+        "Your messages and the slides the assistant reads are sent to the AI provider you configured in Settings.",
       ),
     );
   }

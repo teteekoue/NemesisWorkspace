@@ -6,7 +6,7 @@
  * io.js), authored "tc={first comment id}", so a reader that knows only notes still shows it.
  *
  * A comment that @mentions people lists them in its <mentions> element: each mention names a person of the
- * person list (where a Puter user is known by username, anyone else by email address) and where in the
+ * person list (where a User is known by username, anyone else by email address) and where in the
  * text the "@Name" stands (startIndex and length, in UTF-16 code units).
  */
 import { cellKey, cellName, parseKey } from './cell.js';
@@ -40,7 +40,7 @@ function fileTime(iso) {
 export function createPersonList() {
   const people = new Map();
   return {
-    /** The person someone mentions: known by email address where there is one, else by Puter username. */
+    /** The person someone mentions: known by email address where there is one, else by Username. */
     idForMention(m) {
       return this.idFor({ author: m.name, userId: m.email || m.user || m.name, providerId: 'None' });
     },

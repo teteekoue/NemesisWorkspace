@@ -80,13 +80,13 @@ export function createEditorPane({ editor, pkg, proofing, error, onState = () =>
   const aiList = el('div.rv-list', { role: 'list', 'aria-label': 'Grammar and style suggestions' });
   const aiRun = button('Check with AI', () => runAi(), { primary: true });
   const aiBody = el('div.rv-ai-body', {}, el('div.rv-checks', {}, ...kindBoxes.map(b => b.node)), el('div.rv-actions', {}, aiRun), aiStatus, aiList);
-  const ai = section('Grammar and refinements', el('label.rv-check.rv-ai-toggle', {}, aiToggle, el('span', {}, 'Suggest with ', el('span.rv-ai-badge', { title: 'Uses Puter AI' }, 'AI'))),
-    hint('When you run a check, the text being checked is sent to Puter AI. Nothing is sent until you choose Check with AI.'), aiBody);
+  const ai = section('Grammar and refinements', el('label.rv-check.rv-ai-toggle', {}, aiToggle, el('span', {}, 'Suggest with ', el('span.rv-ai-badge', { title: 'Uses AI' }, 'AI'))),
+    hint('When you run a check, the text being checked is sent to this device AI. Nothing is sent until you choose Check with AI.'), aiBody);
   function renderAi() {
     aiBody.hidden = !aiToggle.checked;
     const available = P.canUseAi();
     aiRun.disabled = !available || !!aiBusy;
-    if (!available) aiStatus.textContent = 'AI suggestions need Puter. Open this document in Puter to use them.';
+    if (!available) aiStatus.textContent = 'AI suggestions need a provider. Configure one in Settings to use them.';
     const visible = aiSuggestions.filter(s => !ignoredSuggestions.has(key(s)) && !(pkg()?.reviewSettings?.hideGrammaticalErrors));
     aiList.replaceChildren(...visible.map(s => el('div.rv-item.rv-ai-item', { role: 'listitem' },
       el('button.rv-ai-target', { type: 'button', onclick: () => reveal(editor(), s.start, s.end) }, el('span.rv-ai-kind', {}, SUGGESTION_KINDS[s.kind]), el('span.rv-ai-change', {}, el('del', {}, s.original), ' → ', el('ins', {}, s.suggestion))),
