@@ -63,7 +63,9 @@ jobs:
           set -euo pipefail
           node --version
           cd src/nemesis-workspace
-          node dev/build-all.mjs
+          # Le journal complet reste lisible même si l'étape échoue.
+          set -o pipefail
+          node dev/build-all.mjs 2>&1 | tee /tmp/build.log
           # Rien ne doit être servi depuis le réseau : l'interface doit
           # exister, en entier, avant d'entrer dans l'application.
           test -f ../nemesis-workspace/dist/index.html
@@ -148,7 +150,7 @@ jobs:
           ./gradlew --no-daemon --stacktrace \
             -Pnemesis.versionName="${VERSION_NAME}" \
             -Pnemesis.versionCode="${VERSION_CODE}" \
-            assembleRelease
+            assembleRelease 2>&1 | tee /tmp/gradle.log
           find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
 
       - name: Vérifier chaque paquet
@@ -207,6 +209,27 @@ jobs:
             echo "vérifier le fichier téléchargé."
           } > NOTES.md
           cat NOTES.md
+
+      - name: Rapporter l'échec
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPORT=/tmp/report.txt
+          {
+            echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
+            echo
+            for f in /tmp/build.log /tmp/gradle.log; do
+              [ -f "$f" ] || continue
+              echo "\`\`\`"
+              tail -n 60 "$f"
+              echo "\`\`\`"
+            done
+          } > "$REPORT"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            -f body="$(cat "$REPORT")" >/dev/null || echo "rapport non publié"
+          cat "$REPORT"
 
       - name: Conserver les paquets et les vérifications
         uses: actions/upload-artifact@v4
