@@ -141,25 +141,24 @@ jobs:
           fi
 
       - name: Construire les quatre paquets
-        env:
-          NEMESIS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        shell: bash
         run: |
-          set +e
+          set -uo pipefail
           cd android
           chmod +x gradlew
+          set +e
           ./gradlew --no-daemon --stacktrace \
             -Pnemesis.versionName="${VERSION_NAME}" \
             -Pnemesis.versionCode="${VERSION_CODE}" \
             assembleRelease 2>&1 | tee -a /tmp/android-build.log
-          # Le détail de lint, s'il a bloqué la construction.
-          echo "EXIT=$?"
-          # Le détail de lint, s'il a bloqué la construction.
-          if [ -f app/build/reports/lint-results-release.txt ]; then
-            head -60 app/build/reports/lint-results-release.txt | tee -a /tmp/android-build.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ] && [ -f app/build/reports/lint-results-release.txt ]; then
+            # Le détail de lint, s'il a arrêté la construction.
+            head -80 app/build/reports/lint-results-release.txt | tee -a /tmp/android-build.log
           fi
-          ls app/build/outputs/apk/release 2>/dev/null || echo "aucun APK"
-          exit 1
-          find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
+          echo "─ Paquets produits :"
+          find app/build/outputs -name '*.apk' -printf '%p  %k Ko\n' 2>/dev/null | sort || true
+          exit "$STATUS"
 
       - name: Vérifier chaque paquet
         run: |
