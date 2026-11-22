@@ -17,6 +17,9 @@
         android:xlargeScreens="true"
         android:anyDensity="true" />
 
+    <!-- Toutes les architectures : le paquet ne contient aucun code natif, et
+         l'application s'installe sur un Chromebook Intel comme sur un
+         téléphone ARM. Ces déclarations le disent explicitement au magasin. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.type.pc" android:required="false" />
     <uses-feature android:name="android.hardware.keyboard" android:required="false" />

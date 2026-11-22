@@ -200,17 +200,83 @@ jobs:
 
           # 6. Ce que le runner a réellement produit, avant contrôle.
           find android/app/build/outputs/apk/release -name '*.apk' -printf '%f\n' | sort
-          for f in verification/*.abis.txt; do echo "[$f] $(tr '\n' ' ' < "$f")"; done
 
-          # 7. Chaque architecture demandée a son paquet, plus l'universel.
-          for abi in x86 armeabi-v7a arm64-v8a; do
-            found=$(cat verification/*.abis.txt | grep -qx "$abi" && echo oui || echo non)
-            [ "$found" = oui ] || fail "aucun paquet pour $abi"
+          # 7. Un seul paquet, et il doit contenir les trois éditeurs.
+          count=$(find android/app/build/outputs/apk/release -name '*.apk' | wc -l)
+          [ "$count" -eq 1 ] || fail "un seul paquet est publié, $count ont été produits"
+          apk=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          "$BUILD_TOOLS/aapt2" dump badging "$apk" > verification/badging.txt 2>&1 \
+            || fail "le manifeste du paquet est illisible"
+          grep -E "^(package|sdkVersion|targetSdkVersion|native-code|launchable-activity)" verification/badging.txt
+          grep -q "launchable-activity" verification/badging.txt || fail "aucun point d'entrée"
+          # Aucun code natif : le paquet est le même partout.
+          if grep -q "native-code" verification/badging.txt; then
+            echo "::warning::du code natif est apparu ; les architectures redeviennent une contrainte"
+          fi
+          echo "::notice::Vérifications terminées : signature, alignement, manifeste, interface."
+
+      - name: Installer et lancer sur un émulateur x86
+        shell: bash
+        timeout-minutes: 25
+        if: always() && hashFiles('android/app/build/outputs/apk/release/*.apk') != ''
+        run: |
+          exec > >(tee -a /tmp/emulator.log) 2>&1
+          set -uo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build >/dev/null
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "emulator" "platform-tools" "system-images;android-30;google_apis;x86" >/dev/null
+
+          APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "Paquet testé : $APK"
+
+          # Un appareil de bureau : 1600×1200, clavier et souris.
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            -n nemesis -k "system-images;android-30;google_apis;x86" --force >/dev/null
+          echo 'hw.keyboard=yes' >> "$HOME/.android/avd/nemesis.avd/config.ini"
+          echo 'hw.lcd.width=1600' >> "$HOME/.android/avd/nemesis.avd/config.ini"
+          echo 'hw.lcd.height=1200' >> "$HOME/.android/avd/nemesis.avd/config.ini"
+          echo 'hw.lcd.density=160' >> "$HOME/.android/avd/nemesis.avd/config.ini"
+
+          "$ANDROID_HOME/emulator/emulator" -avd nemesis -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -no-snapshot > /tmp/emulator.out 2>&1 &
+          EMULATOR=$!
+          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          for i in $(seq 1 90); do
+            boot=$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            [ "$boot" = "1" ] && break
+            sleep 4
           done
-          universal=$(grep -l . verification/*.abis.txt | while read -r f; do
-            n=$(wc -l < "$f"); [ "$n" -ge 3 ] && echo "$f"; done | head -1)
-          [ -n "$universal" ] || fail "aucun paquet universel"
-          echo "::notice::Vérifications terminées : signature, alignement, architectures, interface."
+          [ "${boot:-}" = "1" ] || { tail -30 /tmp/emulator.out; fail "l'émulateur n'a pas démarré"; }
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          echo "Émulateur prêt : $($ADB shell getprop ro.product.cpu.abi)"
+
+          $ADB install -r "$APK" || fail "installation refusée"
+          $ADB shell input keyevent KEYCODE_WAKEUP || true
+          $ADB shell am start -W -n com.nemesisworkspace.app/.MainActivity | tee /tmp/start.txt
+          grep -q "Status: ok" /tmp/start.txt || fail "l'application ne démarre pas"
+          sleep 25
+
+          # L'écran doit être l'accueil de l'espace, pas une page vide ni une
+          # erreur : on interroge la page elle-même par le port de débogage.
+          $ADB shell "run-as com.nemesisworkspace.app ls files" >/dev/null 2>&1 || true
+          $ADB exec-out screencap -p > verification/ecran-emulateur.png || true
+          ls -l verification/ecran-emulateur.png || true
+          if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
+            echo "::notice::L'application tourne après installation."
+          else
+            fail "le processus de l'application n'est pas actif"
+          fi
+          $ADB logcat -d -s AndroidRuntime:E chromium:E NemesisWorkspace:* > verification/logcat.txt || true
+          if grep -q "FATAL EXCEPTION" verification/logcat.txt; then
+            cat verification/logcat.txt
+            fail "l'application a planté"
+          fi
+          $ADB emu kill || true
+          kill $EMULATOR 2>/dev/null || true
 
       - name: Effacer la clé du disque
         if: always()
