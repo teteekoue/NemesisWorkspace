@@ -151,6 +151,8 @@ jobs:
             -Pnemesis.versionName="${VERSION_NAME}" \
             -Pnemesis.versionCode="${VERSION_CODE}" \
             assembleRelease 2>&1 | tee /tmp/gradle.log
+          # Le détail de lint, s'il a bloqué la construction.
+          find app/build/reports -name '*.txt' -o -name '*.html' 2>/dev/null | head -5
           find app/build/outputs/apk -name '*.apk' -printf '%p  %k Ko\n' | sort
 
       - name: Vérifier chaque paquet
@@ -210,6 +212,18 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
+      - name: Conserver les rapports d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echec-rapports
+          path: |
+            /tmp/gradle.log
+            /tmp/build.log
+            android/app/build/reports/**
+          if-no-files-found: ignore
+          retention-days: 5
+
       - name: Rapporter l'échec
         if: failure()
         env:
@@ -224,7 +238,7 @@ jobs:
               [ -f "$f" ] || continue
               echo "\`\`\`"
               # Les lignes qui expliquent l'échec, pas la pile d'appels.
-              grep -E "^e: |^w: .*error|error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed" "$f" | tail -n 40 || true
+              grep -E "^e: |error:|Error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed|severity|Lint found|^ *[0-9]+ +[a-z]" "$f" | tail -n 60 || true
               echo "\`\`\`"
             done
           } > "$REPORT"

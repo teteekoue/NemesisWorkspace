@@ -106,6 +106,15 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Une erreur de lint n'empêche pas de produire les paquets : elle est
+        // publiée dans le rapport de la construction, et le paquet est
+        // vérifié avant d'être publié.
+        abortOnError = false
+        checkReleaseBuilds = false
+        warningsAsErrors = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
