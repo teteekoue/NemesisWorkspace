@@ -107,13 +107,12 @@ jobs:
       - name: Configurer Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Préparer la clé de signature
+      - name: Vérifier la clé de signature
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          NEMESIS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           cd android
@@ -123,32 +122,23 @@ jobs:
           [ -z "${KEY_PASSWORD:-}" ] || echo "::add-mask::$KEY_PASSWORD"
 
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            # Une clé fournie par la forge — rotation, ou dépôt sans clé.
             mkdir -p keystore
             printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore/nemesis-release.p12
-            PASS="$KEYSTORE_PASSWORD"
-            ALIAS="${KEY_ALIAS:-nemesisworkspace}"
-            echo "::notice::La clé de signature vient des secrets du dépôt."
-          elif [ -f keystore/nemesis-release.p12 ]; then
-            # Le mot de passe de cette clé accompagne l'arbre de travail.
-            PASS="$(cat keystore/nemesis-release.pass 2>/dev/null || true)"
-            if [ -z "$PASS" ]; then
-              echo "::error::Clé présente sans mot de passe."
-              exit 1
-            fi
-            ALIAS="nemesisworkspace"
-            echo "::warning::Aucun secret GitHub : la clé de l'arbre de travail est utilisée."
+            {
+              echo "storeFile=keystore/nemesis-release.p12"
+              echo "storePassword=${KEYSTORE_PASSWORD}"
+              echo "keyAlias=${KEY_ALIAS:-nemesisworkspace}"
+              echo "keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } > keystore.properties
+            chmod 600 keystore.properties
+            echo "::notice::Clé fournie par les secrets du dépôt."
+          elif [ -f keystore/nemesis-release.p12 ] && [ -s keystore/nemesis-release.pass ]; then
+            echo "::notice::Clé de publication du dépôt utilisée."
           else
-            echo "::error::Aucune clé de signature. Définissez le secret ANDROID_KEYSTORE_BASE64."
+            echo "::error::Aucune clé de signature : keystore/nemesis-release.p12 est absent."
             exit 1
           fi
-
-          {
-            echo "storeFile=keystore/nemesis-release.p12"
-            echo "storePassword=${PASS}"
-            echo "keyAlias=${ALIAS}"
-            echo "keyPassword=${KEY_PASSWORD:-$PASS}"
-          } > keystore.properties
-          chmod 600 keystore.properties
 
       - name: Construire les quatre paquets
         env:

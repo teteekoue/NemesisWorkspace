@@ -13,11 +13,18 @@ plugins {
  * variante de publication n'est pas signée : elle sert à vérifier que le code
  * compile, jamais à publier.
  */
+val keystoreFile = rootProject.file("keystore/nemesis-release.p12")
+val keystorePassword = rootProject.file("keystore/nemesis-release.pass")
+    .takeIf { it.exists() }?.readText()?.trim().orEmpty()
+
 val keystoreProperties = Properties().apply {
-    val file = rootProject.file("keystore.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
+    val overrides = rootProject.file("keystore.properties")
+    // Une clé fournie par la forge (secret) prend le pas sur celle du code.
+    if (overrides.exists()) overrides.inputStream().use { load(it) }
 }
-val hasReleaseKey = keystoreProperties.getProperty("storeFile") != null
+val hasReleaseKey =
+    keystoreProperties.getProperty("storeFile") != null ||
+        (keystoreFile.exists() && keystorePassword.isNotEmpty())
 
 android {
     namespace = "com.nemesisworkspace.app"
@@ -49,10 +56,12 @@ android {
     signingConfigs {
         if (hasReleaseKey) {
             create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(
+                    keystoreProperties.getProperty("storeFile") ?: "keystore/nemesis-release.p12",
+                )
+                storePassword = keystoreProperties.getProperty("storePassword") ?: keystorePassword
+                keyAlias = keystoreProperties.getProperty("keyAlias") ?: "nemesisworkspace"
+                keyPassword = keystoreProperties.getProperty("keyPassword") ?: keystorePassword
             }
         }
     }
