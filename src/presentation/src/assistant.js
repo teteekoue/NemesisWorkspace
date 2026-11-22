@@ -308,6 +308,9 @@ export function createAgent({
         const iterable = chat(requestMessages(transcript), {
           model: AI_MODEL,
           tools: TOOLS,
+          // Le catalogue d'outils ne change pas d'un tour à l'autre : le
+          // fournisseur le met en cache au lieu de le relire à chaque message.
+          cacheTools: true,
         });
         const iter = iterable[Symbol.asyncIterator]();
         for (;;) {

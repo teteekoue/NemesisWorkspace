@@ -312,6 +312,11 @@ export async function chat(prompt, options = {}) {
   if (options.tools?.length) {
     body.tools = toOpenAiTools(options.tools);
     body.tool_choice = options.tool_choice || 'auto';
+    // Le catalogue d'outils est long (le tableur en envoie 42 Ko) et ne change
+    // pas d'un tour à l'autre : le faire mettre en cache par le fournisseur
+    // évite de le relire — et de le facturer — à chaque message. Les
+    // fournisseurs qui ne le connaissent pas l'ignorent.
+    if (options.cacheTools !== false) body.cache_control = { type: 'ephemeral' };
   }
   if (options.response_format) body.response_format = options.response_format;
   // Paramètres propres au raisonnement : n'envoyer que si l'utilisateur les a activés.

@@ -17,6 +17,7 @@ import { aiActionById, askAi, answerParagraphs, readableText, insertableText, li
 import { assistantPrompt, readReply, assistantError, SUGGESTIONS, MAX_ASSISTANT_CHARS } from '../lib/assistant.js';
 import { ASSISTANT_TOOLS, ASSISTANT_SYSTEM_PROMPT, documentSnapshot, runTool } from '../lib/assistant-tools.js';
 import { sidePane, hint } from './review-ui.js';
+import { commandIconEl } from '../ui/ribbon.js';
 import { activeProvider } from '../../../shared/config.js';
 import { aiSupportsImages } from '../../../shared/ai.js';
 
@@ -30,7 +31,6 @@ function providerInfo() {
     return null;
   }
 }
-import { commandIconEl } from '../ui/ribbon.js';
 
 const words = text => (String(text).trim().match(/\S+/gu) || []).length;
 const plural = (n, one, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
@@ -241,7 +241,9 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     let answer = '';
     for (let round = 0; round < 8; round += 1) {
       if (!isLive(token)) return { text: answer || 'Arrêté.', steps, stopped: true };
-      const iterable = await chat(transcript, { tools: ASSISTANT_TOOLS, stream: true });
+      // Le catalogue d'outils ne change pas d'un tour à l'autre : le fournisseur
+      // le met en cache au lieu de le relire à chaque message.
+      const iterable = await chat(transcript, { tools: ASSISTANT_TOOLS, stream: true, cacheTools: true });
       let text = '';
       const calls = [];
       for await (const part of iterable) {
