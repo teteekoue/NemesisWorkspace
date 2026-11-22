@@ -15,6 +15,7 @@
 import { el, icon, toast, field, toggleRow, modal, humanBytes, confirmDialog } from '../ui/dom.js';
 import {
   AI_PRESETS,
+  makeProvider,
   CLOUD_PRESETS,
   findAiPreset,
   findCloudPreset,
@@ -219,237 +220,417 @@ function storagePane() {
 /* Intelligence artificielle                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * L'onglet Intelligence artificielle.
+ *
+ * Plusieurs fournisseurs cohabitent : chacun garde son endpoint, sa clé, ses
+ * modèles et ses réglages. Un seul est « actif » — celui que les trois
+ * éditeurs interrogent. On peut tester un fournisseur sans le sélectionner,
+ * et la clé n'est jamais affichée en entier.
+ */
 function aiPane() {
-  const ai = { ...getAiConfig() };
-  const models = [...(ai.models || [])];
+  const ai = loadConfig().ai;
+  const providers = (ai.providers || []).map((item) => makeProvider(item));
+  const editing = new Set();
+  let activeId = ai.activeProvider || providers[0]?.id || '';
 
+  const listHost = el('div.provider-list');
+  const detailHost = el('div.provider-detail');
   const statusSlot = el('div');
-  const chipsSlot = el('div.model-chips');
-  const modelSelect = el('select.select');
-  const baseUrlInput = textInput({
-    value: ai.baseUrl,
-    placeholder: 'https://api.exemple.com/v1',
-    onInput: (value) => queueSave({ ai: { baseUrl: value.trim(), preset: 'custom' } }),
-  });
-  const keyInput = el('input.input', {
-    type: 'password',
-    value: ai.apiKey,
-    placeholder: 'sk-…',
-    autocomplete: 'off',
-    oninput: (event) => queueSave({ ai: { apiKey: event.target.value.trim() } }),
-  });
 
-  const paintModels = (selected) => {
-    const list = [...new Set(models)];
-    modelSelect.replaceChildren(
-      ...(list.length ? list : [ai.model].filter(Boolean)).map((name) =>
-        el('option', { value: name, selected: name === selected }, name),
-      ),
-      list.length ? null : el('option', { value: '', disabled: true, selected: !selected }, 'Aucun modèle pour l’instant'),
-    );
-    chipsSlot.replaceChildren(
-      ...list.map((name) =>
+  const save = () => {
+    updateConfig({
+      ai: {
+        enabled: ai.enabled,
+        providers: providers.map((item) => ({ ...item })),
+        activeProvider: activeId,
+      },
+    });
+  };
+
+  const current = () => providers.find((item) => item.id === activeId) || providers[0] || null;
+
+  /* ---- Liste à gauche, détail à droite ---- */
+
+  function paint() {
+    listHost.replaceChildren(
+      ...providers.map((provider) =>
         el(
-          `button.model-chip${name === selected ? '.is-on' : ''}`,
-          {
-            type: 'button',
-            title: `Choisir ${name}`,
-            onclick: () => {
-              selected = name;
-              saveNow({ ai: { model: name } });
-              paintModels(name);
-            },
-          },
-          icon(name === selected ? 'check' : 'brain', 13),
-          name,
+          `button.provider-row${provider.id === activeId ? '.is-active' : ''}`,
+          { type: 'button', onclick: () => { activeId = provider.id; save(); paint(); } },
           el(
-            'span.chip-x',
-            {
-              role: 'button',
-              'aria-label': `Retirer ${name}`,
-              onclick: (event) => {
-                event.stopPropagation();
-                const index = models.indexOf(name);
-                if (index >= 0) models.splice(index, 1);
-                const next = selected === name ? models[0] || '' : selected;
-                saveNow({ ai: { models, model: next } });
-                paintModels(next);
-              },
-            },
-            '×',
+            'span.provider-badge',
+            { class: provider.verified ? 'is-ok' : '' },
+            icon(provider.verified ? 'check' : 'brain', 14),
           ),
+          el(
+            'span.provider-copy',
+            {},
+            el('strong', {}, provider.name || 'Fournisseur'),
+            el('small', {}, provider.model ? `${provider.model}` : 'Aucun modèle choisi'),
+          ),
+          provider.id === activeId ? el('span.active-tag', {}, 'actif') : null,
         ),
       ),
       el(
-        'button.model-chip.add',
-        {
-          type: 'button',
-          onclick: () => addModelDialog((name) => {
-            if (!models.includes(name)) models.push(name);
-            saveNow({ ai: { models, model: ai.model || name } });
-            paintModels(selected || name);
-          }),
-        },
-        icon('plus', 13),
-        'Ajouter un modèle',
+        'button.provider-row.add',
+        { type: 'button', onclick: () => addProvider() },
+        icon('plus', 15),
+        el('span.provider-copy', {}, el('strong', {}, 'Ajouter un fournisseur')),
       ),
     );
-  };
+    paintDetail();
+  }
 
-  const applyPreset = (presetId) => {
-    const preset = findAiPreset(presetId);
-    const nextModels = preset.models?.length ? [...preset.models] : models;
-    models.splice(0, models.length, ...nextModels);
-    const model = nextModels.includes(ai.model) ? ai.model : nextModels[0] || '';
-    saveNow({
-      ai: {
-        preset: preset.id,
-        baseUrl: preset.baseUrl || baseUrlInput.value.trim(),
-        models: nextModels,
-        model,
-        supportsImages: !!preset.vision,
-        thinking: !!preset.thinking,
-      },
+  function paintDetail() {
+    const provider = current();
+    if (!provider) {
+      detailHost.replaceChildren(
+        el(
+          'div.empty-state',
+          {},
+          icon('sparkles', 26),
+          el('strong', {}, 'Aucun fournisseur pour l’instant'),
+          el('p', {}, 'Ajoutez-en un : endpoint compatible OpenAI v1, clé API, modèles. Rien ne part tant que vous ne l’activez pas.'),
+          el('button.btn.btn-primary.btn-sm', { type: 'button', onclick: () => addProvider() }, 'Ajouter un fournisseur'),
+        ),
+      );
+      return;
+    }
+    // Les champs sont écrits dans `provider` à chaque frappe ; cette fonction
+    // ne fait que consolider le nom (vide → nom par défaut) et rafraîchir.
+    const confirmed = () => {
+      provider.name = String(nameInput.value || '').trim() || 'Fournisseur';
+      save();
+      paint();
+    };
+
+    const nameInput = el('input.input', {
+      value: provider.name,
+      placeholder: 'Nom (ex. TokenHarbor)',
+      oninput: () => { provider.name = nameInput.value; },
+      onchange: confirmed,
     });
-    baseUrlInput.value = preset.baseUrl || baseUrlInput.value;
-    paintModels(model);
-    toast(`Fournisseur « ${preset.label} » sélectionné`, { kind: 'ok' });
-  };
 
-  const showStatus = (textNode, kind) => {
-    statusSlot.replaceChildren(
-      el('div.test-line', {}, textNode, kind === 'busy' ? el('span.spinner') : null),
+    const presetSelect = el(
+      'select.select',
+      {
+        onchange: (event) => {
+          const preset = findAiPreset(event.target.value);
+          provider.preset = preset.id;
+          if (preset.baseUrl) provider.baseUrl = preset.baseUrl;
+          if (preset.models?.length) {
+            provider.models = [...preset.models];
+            provider.model = preset.models[0];
+          }
+          provider.supportsImages = !!preset.vision;
+          provider.thinking = !!preset.thinking;
+          save();
+          paint();
+        },
+      },
+      ...AI_PRESETS.map((preset) => el('option', { value: preset.id, selected: preset.id === provider.preset }, preset.label)),
     );
-  };
 
-  const fetchModels = async () => {
-    showStatus(el('span.test-result', {}, 'Interrogation du fournisseur…'), 'busy');
-    try {
-      const found = await listModels({
-        baseUrl: baseUrlInput.value.trim(),
-        apiKey: keyInput.value.trim(),
-      });
-      if (!found.length) throw new Error('Le fournisseur n’a renvoyé aucun modèle.');
-      for (const name of found) if (!models.includes(name)) models.push(name);
-      const chosen = models.includes(ai.model) ? ai.model : found[0];
-      saveNow({ ai: { models, model: chosen } });
-      paintModels(chosen);
-      showStatus(el('span.test-result.is-ok', {}, `${found.length} modèles récupérés.`));
-      toast(`${found.length} modèles disponibles`, { kind: 'ok' });
-    } catch (error) {
-      showStatus(el('span.test-result.is-error', {}, error?.message || 'Échec de la récupération.'), 'error');
-    }
-  };
+    const baseUrlInput = el('input.input', {
+      type: 'url',
+      value: provider.baseUrl,
+      placeholder: 'https://exemple.com/v1',
+      spellcheck: false,
+      autocomplete: 'off',
+      oninput: () => { provider.baseUrl = baseUrlInput.value.trim(); },
+      onchange: confirmed,
+    });
 
-  const testAi = async () => {
-    showStatus(el('span.test-result', {}, 'Test en cours…'), 'busy');
-    try {
-      const reply = await testConnection();
-      showStatus(el('span.test-result.is-ok', {}, `Connexion réussie — réponse : « ${String(reply).slice(0, 40)} »`), 'ok');
-      saveNow({ ai: { enabled: true } });
-    } catch (error) {
-      showStatus(el('span.test-result.is-error', {}, error?.message || 'Échec du test.'), 'error');
-    }
-  };
+    const keyInput = el('input.input', {
+      type: 'password',
+      value: provider.apiKey,
+      placeholder: 'sk-… / thk_…',
+      autocomplete: 'off',
+      spellcheck: false,
+      oninput: () => { provider.apiKey = keyInput.value.trim(); },
+      onchange: confirmed,
+    });
 
-  paintModels(ai.model);
+    const modelSelect = el('select.select', {
+      onchange: (event) => { provider.model = event.target.value; save(); },
+    });
+    const paintModels = () => {
+      const list = [...new Set(provider.models || [])];
+      modelSelect.replaceChildren(
+        ...(list.length
+          ? list.map((name) => el('option', { value: name, selected: name === provider.model }, name))
+          : [el('option', { value: '', selected: !provider.model }, 'Aucun modèle — récupérez la liste')]),
+      );
+    };
+    paintModels();
 
-  const presetSelect = el(
-    'select.select',
-    {
-      onchange: (event) => applyPreset(event.target.value),
-    },
-    ...AI_PRESETS.map((preset) => el('option', { value: preset.id, selected: preset.id === ai.preset }, preset.label)),
-  );
+    const chips = el('div.model-chips');
+    const paintChips = () => {
+      chips.replaceChildren(
+        ...(provider.models || []).map((name) =>
+          el(
+            'span.model-chip',
+            {
+              class: name === provider.model ? 'is-on' : '',
+              role: 'button',
+              tabindex: '0',
+              title: `Choisir ${name}`,
+              onclick: () => { provider.model = name; save(); paintChips(); paintModels(); },
+            },
+            icon(name === provider.model ? 'check' : 'brain', 12),
+            name,
+            el(
+              'span.chip-x',
+              {
+                role: 'button',
+                'aria-label': `Retirer ${name}`,
+                onclick: (event) => {
+                  event.stopPropagation();
+                  provider.models = provider.models.filter((item) => item !== name);
+                  if (provider.model === name) provider.model = provider.models[0] || '';
+                  save();
+                  paintChips();
+                  paintModels();
+                },
+              },
+              '×',
+            ),
+          ),
+        ),
+        el(
+          'button.model-chip.add',
+          {
+            type: 'button',
+            onclick: () => addModelDialog((name) => {
+              if (!provider.models.includes(name)) provider.models.push(name);
+              provider.model = provider.model || name;
+              save();
+              paintChips();
+              paintModels();
+            }),
+          },
+          icon('plus', 12),
+          'Ajouter',
+        ),
+      );
+    };
+    paintChips();
+
+    const testLine = el('div.test-line');
+    const fetchModels = async (button) => {
+      button.disabled = true;
+      testLine.replaceChildren(el('span.test-result', {}, 'Interrogation du fournisseur…'), el('span.spinner'));
+      try {
+        const found = await listModels({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, extraHeaders: provider.extraHeaders });
+        if (!found.length) throw new Error('Le fournisseur n’a renvoyé aucun modèle.');
+        provider.models = [...new Set([...provider.models, ...found])];
+        provider.model = provider.model || found[0];
+        provider.verified = true;
+        save();
+        paintChips();
+        paintModels();
+        paint();
+        toast(`${found.length} modèles récupérés`, { kind: 'ok' });
+      } catch (error) {
+        testLine.replaceChildren(el('span.test-result.is-error', {}, error?.message || 'Échec de la récupération.'));
+      } finally {
+        button.disabled = false;
+      }
+    };
+    const testProvider = async (button) => {
+      button.disabled = true;
+      testLine.replaceChildren(el('span.test-result', {}, 'Test en cours…'), el('span.spinner'));
+      const previous = { enabled: ai.enabled, providers: [...providers], activeProvider: activeId };
+      try {
+        // Le test passe par ce fournisseur, même s'il n'est pas l'actif.
+        updateConfig({
+          ai: {
+            enabled: true,
+            providers: providers.map((item) => ({ ...item })),
+            activeProvider: provider.id,
+          },
+        });
+        const reply = await testConnection();
+        provider.verified = true;
+        save();
+        testLine.replaceChildren(
+          el('span.test-result.is-ok', {}, `Connexion réussie — réponse : « ${String(reply).slice(0, 40)} »`),
+        );
+      } catch (error) {
+        testLine.replaceChildren(el('span.test-result.is-error', {}, error?.message || 'Échec du test.'));
+      } finally {
+        button.disabled = false;
+        // Un fournisseur testé n'est pas forcément celui qu'on veut garder actif.
+        if (previous.activeProvider && previous.activeProvider !== provider.id) {
+          updateConfig({
+            ai: {
+              enabled: previous.enabled,
+              providers: providers.map((item) => ({ ...item })),
+              activeProvider: previous.activeProvider,
+            },
+          });
+          activeId = previous.activeProvider;
+        }
+        paint();
+      }
+    };
+
+    detailHost.replaceChildren(
+      el(
+        'div.provider-head',
+        {},
+        el('div', {}, el('h4', {}, provider.name || 'Fournisseur'), el('p.muted.small', {}, provider.baseUrl || 'Endpoint non renseigné')),
+        el(
+          'div.provider-actions',
+          {},
+          el('button.btn.btn-sm', { type: 'button', onclick: (e) => testProvider(e.currentTarget) }, icon('sparkles', 14), 'Tester'),
+          el('button.btn.btn-sm', { type: 'button', onclick: (e) => fetchModels(e.currentTarget) }, icon('refresh', 14), 'Modèles'),
+          el(
+            'button.btn.btn-sm.btn-ghost',
+            {
+              type: 'button',
+              title: 'Supprimer ce fournisseur',
+              onclick: async () => {
+                if (!(await confirmDialog({ title: 'Supprimer ce fournisseur ?', message: `« ${provider.name} » et sa clé seront retirés de cet appareil.`, confirmLabel: 'Supprimer', danger: true }))) return;
+                const index = providers.findIndex((item) => item.id === provider.id);
+                providers.splice(index, 1);
+                activeId = providers[0]?.id || '';
+                save();
+                paint();
+              },
+            },
+            icon('trash', 14),
+          ),
+        ),
+      ),
+      field('Nom du fournisseur', nameInput),
+      field('Type (pré-remplit endpoint et modèles)', presetSelect),
+      field('Endpoint (compatible OpenAI v1)', baseUrlInput, 'Sans /chat/completions ; /v1 est ajouté si besoin. TokenHarbor : https://tokenharbor.ai/v1'),
+      field(
+        'Clé API',
+        el('div.input-with-action', {}, keyInput, el('button.icon-btn', {
+          type: 'button',
+          title: 'Afficher ou masquer',
+          onclick: (event) => {
+            const shown = keyInput.type === 'text';
+            keyInput.type = shown ? 'password' : 'text';
+            event.currentTarget.replaceChildren(icon(shown ? 'eye' : 'eyeOff', 16));
+          },
+        }, icon('eye', 16))),
+        'Gardée sur cet appareil uniquement. Elle n’est jamais envoyée à NemesisWorkspace.',
+      ),
+      field('Modèle utilisé', modelSelect),
+      chips,
+      testLine,
+      el(
+        'div.field-row',
+        {},
+        field('Fenêtre de contexte (tokens)', numberInput({
+          value: provider.contextTokens, min: 1024, step: 1024,
+          onInput: (value) => { provider.contextTokens = value; save(); },
+        })),
+        field('Réponse maximale (tokens)', numberInput({
+          value: provider.maxTokens, min: 64, step: 256,
+          onInput: (value) => { provider.maxTokens = value; save(); },
+        })),
+      ),
+      el(
+        'div.field-row',
+        {},
+        field('Température', numberInput({
+          value: provider.temperature, min: 0, max: 2, step: 0.1,
+          onInput: (value) => { provider.temperature = value; save(); },
+        }), '0 = précis, 2 = créatif.'),
+        field('En-têtes supplémentaires', el('input.input', {
+          value: provider.extraHeaders,
+          placeholder: 'HTTP-Referer: …',
+          spellcheck: false,
+          oninput: (event) => { provider.extraHeaders = event.target.value; },
+          onchange: confirmed,
+        }), '« Nom: valeur », un par ligne.'),
+      ),
+      toggleRow({
+        title: 'Modèle de raisonnement (thinking)',
+        description: 'Envoie « reasoning.effort » et montre le raisonnement quand le modèle le fournit.',
+        checked: !!provider.thinking,
+        onChange: (value) => { provider.thinking = value; save(); paint(); },
+      }),
+      toggleRow({
+        title: 'Le modèle accepte les images',
+        description: 'Permet de joindre une capture ou une photo à une question.',
+        checked: !!provider.supportsImages,
+        onChange: (value) => { provider.supportsImages = value; save(); paint(); },
+      }),
+      field('Consigne système (facultative)', el('textarea.textarea', {
+        rows: 2,
+        placeholder: 'Ex. : Réponds en français, ton concis.',
+        oninput: (event) => { provider.systemPrompt = event.target.value; },
+        onchange: confirmed,
+      }, provider.systemPrompt || '')),
+    );
+  }
+
+  /** Nouveau fournisseur : nom provisoire, puis on l'édite. */
+  function addProvider() {
+    const provider = makeProvider({ name: 'Nouveau fournisseur', preset: 'custom', baseUrl: '', models: [], model: '' });
+    providers.push(provider);
+    activeId = provider.id;
+    save();
+    paint();
+    setTimeout(() => detailHost.querySelector('input.input')?.focus(), 40);
+  }
+
+  paint();
 
   return el(
     'div.settings-pane',
     {},
     section(
       'Intelligence artificielle',
-      'Facultative et entièrement à votre charge : votre clé, votre fournisseur, votre facture. Sans configuration, l’application reste parfaitement utilisable — les fonctions d’écriture assistée sont simplement masquées.',
+      'Vos clés, vos fournisseurs. Ajoutez-en autant que vous voulez, testez-les, puis choisissez celui qui travaille — les trois éditeurs s’y branchent aussitôt.',
+    ),
+    toggleRow({
+      title: 'Activer l’assistance dans les éditeurs',
+      description: 'Fait apparaître l’assistant dans Documents, Tableur et Présentation.',
+      checked: ai.enabled,
+      onChange: (value) => { ai.enabled = value; save(); },
+    }),
+    el('div.provider-layout', {}, listHost, detailHost),
+    statusSlot,
+    section('Assistance', 'Réglages communs aux trois éditeurs.'),
+    el(
+      'div.field',
+      {},
+      el('span.field-label', {}, 'Quand demander avant de modifier un document'),
+      el(
+        'div.seg',
+        {},
+        ...[
+          ['destructive', 'Avant une suppression'],
+          ['always', 'À chaque modification'],
+          ['never', 'Jamais'],
+        ].map(([value, label]) =>
+          el(
+            'button',
+            {
+              type: 'button',
+              class: (loadConfig().assistant?.approval || 'destructive') === value ? 'is-on' : '',
+              onclick: (event) => {
+                updateConfig({ assistant: { approval: value } });
+                for (const node of event.currentTarget.parentElement.children) node.classList.remove('is-on');
+                event.currentTarget.classList.add('is-on');
+              },
+            },
+            label,
+          ),
+        ),
+      ),
+      el('span.field-hint', {}, 'Le modèle peut tout faire dans un document ; cette question reste la vôtre.'),
     ),
     note(
-      'Compatible OpenAI v1 : OpenAI, Groq, Mistral, OpenRouter, DeepSeek, Together, Ollama ou LM Studio sur votre réseau local, ou n’importe quel endpoint maison.',
-    ),
-    toggleRow({
-      title: 'Activer l’assistance IA dans les éditeurs',
-      description: 'Affiche « Rédiger avec l’IA » dans Documents, Tableur et Présentation.',
-      checked: ai.enabled,
-      onChange: (value) => saveNow({ ai: { enabled: value } }),
-    }),
-    field('Fournisseur', presetSelect, 'Choisir un fournisseur pré-remplit l’endpoint et ses modèles ; « Personnalisé » laisse tout libre.'),
-    field(
-      'Endpoint (API compatible OpenAI v1)',
-      baseUrlInput,
-      'L’adresse de base, sans /chat/completions. Un /v1 est ajouté automatiquement si besoin.',
-    ),
-    field(
-      'Clé API',
-      el('div.input-with-action', {}, keyInput, el('button.icon-btn', {
-        type: 'button',
-        title: 'Afficher ou masquer la clé',
-        onclick: (event) => {
-          const shown = keyInput.type === 'text';
-          keyInput.type = shown ? 'password' : 'text';
-          event.currentTarget.replaceChildren(icon(shown ? 'eye' : 'eyeOff', 17));
-        },
-      }, icon('eye', 17))),
-      'Stockée uniquement sur cet appareil (localStorage). Rien n’est envoyé à NemesisWorkspace.',
-    ),
-    el(
-      'div.test-line',
-      {},
-      el('button.btn.btn-sm', { type: 'button', onclick: fetchModels }, icon('refresh', 15), 'Récupérer les modèles'),
-      el('button.btn.btn-sm', { type: 'button', onclick: testAi }, icon('sparkles', 15), 'Tester la connexion'),
-    ),
-    statusSlot,
-    field('Modèle utilisé par défaut', modelSelect, models.length ? 'La liste vient du fournisseur ; vous pouvez retirer un modèle d’un clic.' : 'Récupérez la liste, ou ajoutez un modèle à la main.'),
-    chipsSlot,
-    section('Paramètres avancés', 'Les valeurs par défaut conviennent à la plupart des fournisseurs.'),
-    el(
-      'div.field-row',
-      {},
-      field('Fenêtre de contexte (tokens)', numberInput({ value: ai.contextTokens, min: 1024, step: 1024, onInput: (v) => queueSave({ ai: { contextTokens: v } }) }), 'Sert à tronquer les longues conversations.'),
-      field('Réponse maximale (tokens)', numberInput({ value: ai.maxTokens, min: 64, step: 256, onInput: (v) => queueSave({ ai: { maxTokens: v } }) }), 'Limite la longueur de chaque réponse.'),
-    ),
-    field(
-      'Températures',
-      el('div.field-row', {},
-        el('label.sub-field', {}, el('span.field-hint', {}, 'Précision ← → Créativité'), numberInput({ value: ai.temperature, min: 0, max: 2, step: 0.1, onInput: (v) => queueSave({ ai: { temperature: v } }) })),
-        el('label.sub-field', {}, el('span.field-hint', {}, 'top_p (facultatif)'), numberInput({ value: ai.topP ?? '', min: 0, max: 1, step: 0.05, onInput: (v) => queueSave({ ai: { topP: v } }) })),
-      ),
-    ),
-    toggleRow({
-      title: 'Modèle de raisonnement (thinking)',
-      description: 'Envoie « reasoning.effort » et affiche le raisonnement dans la réponse.',
-      checked: ai.thinking,
-      onChange: (value) => saveNow({ ai: { thinking: value } }),
-    }),
-    toggleRow({
-      title: 'Le modèle accepte les images',
-      description: 'Autorise l’envoi d’images de la présentation ou du document au fournisseur.',
-      checked: ai.supportsImages,
-      onChange: (value) => saveNow({ ai: { supportsImages: value } }),
-    }),
-    field(
-      'Consigne système (facultative)',
-      el('textarea.textarea', {
-        placeholder: 'Ex. : Réponds en français, style concis, sans emphase.',
-        rows: 3,
-        oninput: (event) => queueSave({ ai: { systemPrompt: event.target.value } }),
-      }, ai.systemPrompt || ''),
-      'Ajoutée à chaque conversation, avant vos messages.',
-    ),
-    field(
-      'En-têtes HTTP supplémentaires',
-      el('textarea.textarea', {
-        placeholder: 'HTTP-Referer: https://…\nX-Custom: valeur',
-        rows: 2,
-        spellcheck: false,
-        oninput: (event) => queueSave({ ai: { extraHeaders: event.target.value } }),
-      }, ai.extraHeaders || ''),
-      'Une ligne par en-tête, au format « Nom: valeur ». Utile pour OpenRouter.',
+      'Compatible OpenAI v1 : OpenAI, Anthropic via passerelle, Groq, Mistral, OpenRouter, DeepSeek, TokenHarbor, Ollama ou LM Studio en local, ou votre propre endpoint.',
+      'ok',
     ),
   );
 }

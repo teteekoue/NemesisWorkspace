@@ -926,3 +926,152 @@ code.inline {
 .empty-state .btn {
   margin-top: 10px;
 }
+
+/* ================= Fournisseurs d'IA ================= */
+
+.provider-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 16px;
+  margin: 14px 0 18px;
+  align-items: start;
+}
+
+@media (max-width: 780px) {
+  .provider-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  text-align: left;
+  width: 100%;
+  transition: background 0.14s, border-color 0.14s;
+}
+
+.provider-row:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.provider-row.is-active {
+  background: var(--surface);
+  border-color: var(--brand-violet);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.12);
+}
+
+.provider-row.add {
+  color: var(--ink-3);
+  border-style: dashed;
+  border-color: var(--border-strong);
+  margin-top: 2px;
+}
+
+.provider-row.add:hover {
+  color: var(--brand-indigo);
+  border-color: var(--brand-violet);
+}
+
+.provider-badge {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: none;
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+
+.provider-badge.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.provider-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.provider-copy strong {
+  font-size: 12.8px;
+  font-weight: 620;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.provider-copy small {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-indigo);
+  background: var(--brand-grad-soft);
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
+  flex: none;
+}
+
+:root[data-theme='dark'] .active-tag {
+  color: #c0b6ff;
+}
+
+.provider-detail {
+  min-width: 0;
+  padding: 14px 16px 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.provider-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.provider-head h4 {
+  font-size: 14px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+
+.provider-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

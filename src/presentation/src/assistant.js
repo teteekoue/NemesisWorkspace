@@ -138,7 +138,7 @@ export function deckSnapshot(
 }
 
 /** The text a user message is sent as: the snapshot, then what they wrote. */
-export function userContent(text, snapshot) {
+export function userContent(text, snapshot, images = []) {
   // The snapshot quotes the deck's text, which anyone may have written: a
   // slide spelling out the closing tag would end the snapshot early, and the
   // rest would read as the user's own words.
@@ -146,13 +146,31 @@ export function userContent(text, snapshot) {
     /<(\/?)(\s*presentation_state\s*)>/gi,
     "‹$1$2›",
   );
-  return quoted
+  const body = quoted
     ? `${CONTEXT_OPEN}\n${quoted}\n${CONTEXT_CLOSE}\n\n${text}`
     : text;
+  // Des images jointes : le contenu devient un tableau de blocs, l'image
+  // gardant la forme `{ source: { type:'base64', media_type, data } }` que le
+  // client partagé traduit pour un fournisseur OpenAI v1.
+  if (!images.length) return body;
+  return [
+    { type: "text", text: body },
+    ...images.map((image) => ({
+      type: "image",
+      source: { type: "base64", media_type: image.media, data: image.data },
+    })),
+  ];
 }
 
 /** What the user wrote, without the snapshot sent with it. */
 export function userText(content) {
+  if (Array.isArray(content)) {
+    const text = content
+      .filter((piece) => piece?.type === "text")
+      .map((piece) => piece.text)
+      .join("\n");
+    return userText(text);
+  }
   const s = String(content ?? "");
   const end = s.indexOf(CONTEXT_CLOSE);
   return s.startsWith(CONTEXT_OPEN) && end >= 0
@@ -228,7 +246,8 @@ const STOP = Symbol("stop");
  * whether a change the approval mode holds back may go ahead; `snapshot()` is
  * the deck state sent with each message; `settings()` gives { approval }.
  *
- * send(text, onEvent) runs one exchange, reporting as it goes:
+ * send(text, onEvent, images) runs one exchange (images being
+ * [{ name, media, data }] to show the model), reporting as it goes:
  *   { type: "text", text }   more of the reply
  *   { type: "step", step }   a tool call, whenever its status changes
  *                            (waiting, running, done, error, declined,
@@ -440,7 +459,7 @@ export function createAgent({
       return messages;
     },
     /** Send what the user wrote, with the deck's state as it is now. */
-    send(text, onEvent) {
+    send(text, onEvent, images = []) {
       if (running) throw new Error("The assistant is still answering.");
       // A reply that failed or was cut off leaves the turn open: it is closed
       // first, since two user messages in a row are refused by some models.
@@ -449,7 +468,10 @@ export function createAgent({
           role: "assistant",
           content: "(My previous reply did not finish.)",
         });
-      messages.push({ role: "user", content: userContent(text, snapshot()) });
+      messages.push({
+        role: "user",
+        content: userContent(text, snapshot(), images),
+      });
       return exchange(onEvent);
     },
     /** Ask again after a reply that failed, from where the failure left it. */

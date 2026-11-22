@@ -20,7 +20,7 @@
  */
 
 import { pickDeviceFiles, saveDeviceFile, shareFile, openExternal, isNative } from './bridge.js';
-import { getAiConfig, aiIsConfigured } from './config.js';
+import { activeProvider, aiIsConfigured, getAiConfig } from './config.js';
 import { chat as aiChat } from './ai.js';
 import { maybeBackup } from './backups.js';
 
@@ -705,6 +705,26 @@ const aiApi = {
   },
   canChat() {
     return aiIsConfigured(getAiConfig());
+  },
+  /**
+   * Le modèle réglé par l'utilisateur. Les éditeurs ont chacun un nom de
+   * modèle écrit en dur (celui de l'écosystème d'origine) : le client partagé
+   * l'ignore quand le fournisseur ne le sert pas, et l'interface peut l'afficher.
+   */
+  model() {
+    try {
+      return activeProvider(getAiConfig())?.model || '';
+    } catch {
+      return '';
+    }
+  },
+  /** Les modèles du fournisseur actif, pour les menus. */
+  models() {
+    try {
+      return activeProvider(getAiConfig())?.models || [];
+    } catch {
+      return [];
+    }
   },
 };
 

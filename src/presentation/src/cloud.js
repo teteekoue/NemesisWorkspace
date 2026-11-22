@@ -299,7 +299,17 @@ export class SaveQueue {
 }
 // Puter's AI answers the assistant. It is there wherever the SDK loaded; the
 // SDK asks for a sign-in itself on the first request made without one.
-export const canAI = () => !!globalThis.puter?.ai?.chat;
+/**
+ * Vrai quand un fournisseur d'IA est prêt. Le SDK local expose toujours
+ * `ai.chat` : sa seule présence ne prouve rien, c'est `canChat()` qui dit si
+ * un fournisseur est activé et configuré dans les paramètres.
+ */
+export const canAI = () => {
+  const ai = globalThis.puter?.ai;
+  if (!ai?.chat) return false;
+  if (typeof ai.canChat === 'function') return !!ai.canChat();
+  return true;
+};
 // One reply from Puter's AI to a conversation, as it arrives: yields
 // { type: "text", text } and { type: "tool", id, name, input } for each
 // function the model calls. `messages` take the OpenAI shape Puter accepts

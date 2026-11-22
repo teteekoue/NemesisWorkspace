@@ -17,7 +17,11 @@ import { attachmentsIntro, attachmentsGone, attachmentWeight, attachmentsFit, se
 import { t, tSource } from '../i18n/index.js';
 import { languageNote } from './aiformula.js';
 
-/** The model the assistant runs on, through Puter's AI. */
+/**
+ * The model the assistant asks for. It is a hint: the shared AI client sends
+ * the model configured in Settings when this one is not served by the
+ * provider, so a provider never receives a name it does not know.
+ */
 export const AI_MODEL = 'claude-opus-5-5';
 
 /**

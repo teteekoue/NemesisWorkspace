@@ -4187,7 +4187,15 @@ const drawTools = createDrawTools({
   renderSlide: (s) => preview(doc.pres, s),
   chat: () =>
     cloud.canAI() ? globalThis.puter.ai.chat.bind(globalThis.puter.ai) : null,
-  aiModel: AI_MODEL,
+  // Le modèle vient du fournisseur réglé dans les paramètres : en imposer un
+  // ici ferait échouer la requête chez la plupart des fournisseurs.
+  get aiModel() {
+    try {
+      return globalThis.puter?.ai?.model?.() || AI_MODEL;
+    } catch {
+      return AI_MODEL;
+    }
+  },
   // Ink to Math sets what it reads as an equation object (src/insert),
   // looked up when used: the insert features are made after the Draw tab.
   equation: () => insertFeatures?.equations || null,

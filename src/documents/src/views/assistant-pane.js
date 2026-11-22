@@ -15,7 +15,21 @@ import { toast } from '../ui/toast.js';
 import * as P from '../lib/puter.js';
 import { aiActionById, askAi, answerParagraphs, readableText, insertableText, listItems } from '../lib/ai.js';
 import { assistantPrompt, readReply, assistantError, SUGGESTIONS, MAX_ASSISTANT_CHARS } from '../lib/assistant.js';
+import { ASSISTANT_TOOLS, ASSISTANT_SYSTEM_PROMPT, documentSnapshot, runTool } from '../lib/assistant-tools.js';
 import { sidePane, hint } from './review-ui.js';
+import { activeProvider } from '../../../shared/config.js';
+import { aiSupportsImages } from '../../../shared/ai.js';
+
+/** Le fournisseur que les requêtes vont utiliser, pour l'afficher sous la saisie. */
+function providerInfo() {
+  try {
+    const provider = activeProvider();
+    if (!provider || !provider.baseUrl || !provider.model) return null;
+    return { name: provider.name, model: provider.model };
+  } catch {
+    return null;
+  }
+}
 import { commandIconEl } from '../ui/ribbon.js';
 
 const words = text => (String(text).trim().match(/\S+/gu) || []).length;
@@ -48,12 +62,49 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
   const context = el('p.as-context', { 'aria-live': 'polite' });
   const input = el('textarea.input.as-input', { rows: 3, placeholder: 'Ask about this document, or ask for a draft or a rewrite…', 'aria-label': 'Message the assistant', enterKeyHint: 'send' });
   const send = el('button.btn.btn-primary.as-send', { type: 'submit', 'aria-label': 'Send', title: 'Send (Enter)' }, 'Send');
-  const form = el('form.as-form', { onsubmit: e => { e.preventDefault(); submit(input.value); } }, scopeGroup, context, el('div.as-box', {}, input, send), el('p.as-disclaimer', {}, 'Only the text shown above is sent to your AI provider. Replies can be wrong: check them before you use them.'));
+  // Une image jointe à une question : le fournisseur réglé doit l'accepter.
+  const attachments = [];
+  const attachRow = el('div.as-attachments');
+  const fileInput = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', multiple: true, hidden: true });
+  const attachButton = el('button.as-attach', { type: 'button', title: 'Joindre une image', 'aria-label': 'Joindre une image', onclick: () => fileInput.click() }, commandIconEl('image', 16));
+  fileInput.addEventListener('change', () => {
+    for (const file of [...(fileInput.files || [])].slice(0, 4)) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        attachments.push({ name: file.name, media: file.type || 'image/png', data: String(reader.result).split(',')[1] || '' });
+        paintAttachments();
+      };
+      reader.readAsDataURL(file);
+    }
+    fileInput.value = '';
+  });
+  function paintAttachments() {
+    attachRow.replaceChildren(...attachments.map((item, at) =>
+      el('span.as-attachment', {}, el('img', { src: `data:${item.media};base64,${item.data}`, alt: item.name }),
+        el('button', { type: 'button', title: 'Retirer', 'aria-label': `Retirer ${item.name}`, onclick: () => { attachments.splice(at, 1); paintAttachments(); } }, '×'))));
+  }
+  const providerLine = el('p.as-provider-line');
+  function paintProvider() {
+    const provider = providerInfo();
+    providerLine.replaceChildren(
+      provider
+        ? el('span', {}, el('span.as-dot'), ` ${provider.name} · ${provider.model}`)
+        : el('span', {}, 'Aucun fournisseur prêt — ouvrez Paramètres ▸ Intelligence artificielle.'),
+    );
+  }
+  const form = el('form.as-form', { onsubmit: e => { e.preventDefault(); submit(input.value); } }, scopeGroup, context,
+    el('div.as-box', {}, el('div.as-box-actions', {}, attachButton), el('div', { style: { flex: '1', display: 'flex', flexDirection: 'column', gap: '6px' } }, attachRow, input), el('div.as-box-actions', {}, send)),
+    fileInput,
+    el('p.as-disclaimer', {}, 'Only the text and images shown above are sent to your AI provider. Replies can be wrong: check them before you use them.'),
+    providerLine);
   input.addEventListener('keydown', e => {
     if (isComposing(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(input.value); }
   });
   pane.body.append(log, form);
+  paintProvider();
+  paintAttachments();
+  window.addEventListener('nemesis:config', paintProvider);
 
   // A small button at the edge of the pages opens the pane (where Puter's AI is available).
   // In the title bar beside Comments, as the other apps' assistants sit in their top bars.
@@ -122,7 +173,38 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     if (p.text.length > MAX_ASSISTANT_CHARS) { toast('That is more text than the assistant takes at once. Select a shorter passage.', { icon: 'alert' }); return; }
     input.value = '';
     message('me', el('p', {}, request), el('p.as-sent', {}, scope === 'selection' ? `With ${plural(words(p.text), 'selected word')}` : 'With the whole document'));
-    await reply(() => chat(assistantPrompt({ request, text: p.text, scope: p.scope, history })).then(readReply), p, request);
+    // Avec des images, le message part en contenu multimodal ; sinon, une simple chaîne.
+    const prompt = assistantPrompt({ request, text: p.text, scope: p.scope, history });
+    const sent = attachments.length
+      ? [{ role: 'user', content: [
+          { type: 'text', text: prompt },
+          ...attachments.map((item) => ({ type: 'image', source: { type: 'base64', media_type: item.media, data: item.data } })),
+        ] }]
+      : prompt;
+    if (attachments.length) {
+      message('me', el('div.as-images', {}, ...attachments.map((item) => el('img', { src: `data:${item.media};base64,${item.data}`, alt: item.name }))));
+      attachments.length = 0; paintAttachments();
+    }
+    await reply(async (waiting) => {
+      try {
+        // Sans images, l'agent reçoit la demande et le document, qu'il lit lui-même.
+        // Avec images, on garde le contenu multimodal (l'aperçu ci-dessus le montre).
+        if (!sent || typeof sent === 'string') {
+          const outcome = await askAgent(request, p, waiting, token);
+          return { kind: 'answer', text: outcome.text, paragraphs: [outcome.text], agent: true };
+        }
+        const outcome = await askAgent(prompt, p, waiting, token);
+        return { kind: 'answer', text: outcome.text, paragraphs: [outcome.text], agent: true };
+      } catch (error) {
+        // Un fournisseur qui refuse les outils : on garde l'ancien dialogue,
+        // qui propose le texte à insérer sans toucher au document.
+        if (/tool|function|unsupported|400|422/i.test(String(error?.message || ''))) {
+          const plain = await chat(assistantPrompt({ request, text: p.text, scope: p.scope, history }));
+          return readReply(plain);
+        }
+        throw error;
+      }
+    }, p, request);
   }
 
   /** One of the writing assistant's actions on the selection (Improve, Shorten, …). */
@@ -132,6 +214,77 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     message('me', el('p', {}, label), el('p.as-sent', {}, scope === 'selection' ? `With ${plural(words(p.text), 'selected word')}` : 'With the whole document'));
     await reply(async () => { const text = await askAi(action, p.text, { chat }); return { kind: 'text', text, paragraphs: answerParagraphs(text), mode: action.mode }; }, p, label);
   }
+
+  /**
+   * Une demande libre, traitée par l'agent : le modèle lit le document, le
+   * modifie avec ses outils et répond en une ou deux phrases. Chaque étape
+   * s'affiche au fil de l'eau. Si le fournisseur refuse les outils, on
+   * retombe sur l'ancien dialogue (conseil + insertion à la main).
+   */
+  async function askAgent(request, p, waiting, token) {
+    const engine = editor();
+    let transcript = [];
+    const steps = [];
+    const stepList = el('div.as-steps');
+    waiting.replaceChildren(stepList, el('p.as-thinking', {}, 'Je regarde le document…'));
+    const snapshot = documentSnapshot(engine, { name: p.name, selectionText: p.scope === 'selection' ? p.text : '' });
+    transcript.push({ role: 'system', content: ASSISTANT_SYSTEM_PROMPT });
+    transcript.push({ role: 'user', content: `${snapshot}\n\n${request}` });
+    let answer = '';
+    for (let round = 0; round < 8; round += 1) {
+      if (!isLive(token)) return { text: answer || 'Arrêté.', steps, stopped: true };
+      const iterable = await chat(transcript, { tools: ASSISTANT_TOOLS, stream: true });
+      let text = '';
+      const calls = [];
+      for await (const part of iterable) {
+        if (!isLive(token)) return { text: answer || 'Arrêté.', steps, stopped: true };
+        if (part?.type === 'text') { text += part.text; }
+        else if (part?.type === 'tool_use') calls.push(part);
+        else if (part?.type === 'reasoning') { /* le raisonnement ne s'affiche pas ici */ }
+      }
+      answer = text.trim() || answer;
+      if (!calls.length) break;
+      transcript.push({
+        role: 'assistant',
+        content: [
+          ...(text.trim() ? [{ type: 'text', text }] : []),
+          ...calls.map((call) => ({ type: 'tool_use', id: call.id, name: call.name, input: call.input || {} })),
+        ],
+      });
+      const results = [];
+      for (const call of calls) {
+        if (!isLive(token)) return { text: answer || 'Arrêté.', steps, stopped: true };
+        const outcome = runTool(call.name, call.input || {}, engine);
+        steps.push({ name: call.name, ok: outcome.ok });
+        stepList.replaceChildren(...steps.map((step) =>
+          el('p.as-step' + (step.ok ? '' : '.is-failed'), {}, step.ok ? '✓ ' : '• ', labelForTool(step.name, step.ok))));
+        results.push({
+          type: 'tool_result',
+          tool_use_id: call.id,
+          content: outcome.content,
+        });
+      }
+      transcript.push({ role: 'user', content: results });
+      waiting.querySelector('.as-thinking')?.replaceChildren('Je continue…');
+    }
+    return { text: answer || 'C’est fait.', steps };
+  }
+
+  // Le jeton d'arrêt est posé par reply() ; « Stop » le retire.
+  const isLive = (token) => !token || stopped === token;
+
+  const TOOL_LABELS = {
+    read_document: 'Lecture du document',
+    replace_selection: 'Remplacement de la sélection',
+    insert_text: 'Ajout de texte',
+    set_paragraph: 'Application d’un style',
+    set_format: 'Mise en forme',
+    set_list: 'Mise en liste',
+    insert_table: 'Insertion d’un tableau',
+    insert_page_break: 'Saut de page',
+    find_and_replace: 'Remplacement dans tout le document',
+  };
+  const labelForTool = (name, ok) => `${TOOL_LABELS[name] || name}${ok ? '' : ' — impossible'}`;
 
   async function reply(ask, p, request) {
     busy = true; send.disabled = true;
@@ -146,7 +299,7 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     } }, 'Stop');
     const waiting = message('assistant', el('p.as-thinking', {}, 'Thinking…'), el('div.as-actions', {}, stop));
     try {
-      const answer = await ask();
+      const answer = await ask(waiting, token);
       if (stopped !== token) return;
       history.push({ request, reply: answer.text });
       waiting.replaceChildren(...answerView(answer, p));
@@ -164,6 +317,11 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
 
   function answerView(answer, p) {
     const body = el('div.as-answer', {}, ...answer.paragraphs.map(t => el('p', {}, t)));
+    // Une réponse de l'agent : elle a déjà modifié le document, un Undo suffit.
+    if (answer.agent) {
+      const undo = el('button.btn.btn-ghost.btn-sm', { type: 'button', onclick: () => { editor()?.undo(); undo.disabled = true; } }, 'Annuler');
+      return [body, el('div.as-actions', {}, undo)];
+    }
     if (answer.kind !== 'text') return [body, actions(answer, p, false)];
     const replacing = p.scope === 'selection' && answer.mode !== 'append';
     const original = replacing ? el('p.as-replaces', {}, `Replaces “${p.text.length > 140 ? `${clipText(p.text, 140).trim()}…` : p.text}”`) : null;

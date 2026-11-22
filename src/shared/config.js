@@ -68,6 +68,15 @@ export const AI_PRESETS = [
     thinking: false,
   },
   {
+    id: 'tokenharbor',
+    label: 'TokenHarbor',
+    baseUrl: 'https://tokenharbor.ai/v1',
+    models: ['deepseek-v4-flash:free', 'gpt-4.1-mini', 'claude-sonnet-4'],
+    vision: true,
+    thinking: false,
+    hint: "Passerelle unique vers GPT, Claude, Gemini, DeepSeek… : une seule clé thk_…, endpoint https://tokenharbor.ai/v1.",
+  },
+  {
     id: 'ollama',
     label: 'Ollama (local)',
     baseUrl: 'http://localhost:11434/v1',
@@ -147,22 +156,40 @@ const DEFAULTS = {
     folder: 'NemesisWorkspace',
   },
   ai: {
+    /** Interrupteur général : sans lui, aucune requête ne part. */
     enabled: false,
+    /**
+     * Les fournisseurs enregistrés. Chacun porte sa propre clé, son endpoint,
+     * sa liste de modèles et ses réglages : on passe de l'un à l'autre sans
+     * rien re-saisir.
+     *
+     *   { id, name, preset, baseUrl, apiKey, models: [], model,
+     *     extraHeaders, temperature, maxTokens, contextTokens,
+     *     thinking, supportsImages, systemPrompt }
+     */
+    providers: [],
+    /** L'identifiant du fournisseur utilisé par les trois éditeurs. */
+    activeProvider: '',
+    /** Raccourci appliqué quand aucun fournisseur n'existe encore. */
     preset: '',
     baseUrl: '',
     apiKey: '',
     models: [],
     model: '',
-    /** En-têtes supplémentaires, « Nom: valeur » séparés par des retours à la ligne. */
     extraHeaders: '',
     temperature: 0.7,
     maxTokens: 4096,
-    /** Fenêtre de contexte annoncée par le fournisseur (tokens), informative. */
     contextTokens: 8192,
-    /** Paramètres non standard transmis au fournisseur (raisonnement). */
     thinking: false,
     supportsImages: false,
     systemPrompt: '',
+  },
+  /** Réglages de l'assistant, communs aux trois éditeurs. */
+  assistant: {
+    /** 'destructive' | 'always' | 'never' — quand demander avant de modifier. */
+    approval: 'destructive',
+    /** Joindre l'image à une question quand le modèle les accepte. */
+    sendImages: true,
   },
 };
 
@@ -244,9 +271,97 @@ export function getStorageConfig() {
   return loadConfig().storage;
 }
 
+/** Identifiant stable pour un fournisseur. */
+export function providerId() {
+  return `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Les champs d'un fournisseur, avec les défauts du preset. */
+export function makeProvider(patch = {}) {
+  const preset = findAiPreset(patch.preset || 'custom');
+  return {
+    id: patch.id || providerId(),
+    name: patch.name || preset.label,
+    preset: patch.preset || 'custom',
+    baseUrl: patch.baseUrl ?? preset.baseUrl ?? '',
+    apiKey: patch.apiKey ?? '',
+    models: Array.isArray(patch.models) ? [...patch.models] : [...(preset.models || [])],
+    model: patch.model ?? (preset.models?.[0] || ''),
+    extraHeaders: patch.extraHeaders ?? '',
+    temperature: patch.temperature ?? 0.7,
+    maxTokens: patch.maxTokens ?? 4096,
+    contextTokens: patch.contextTokens ?? 8192,
+    thinking: patch.thinking ?? !!preset.thinking,
+    supportsImages: patch.supportsImages ?? !!preset.vision,
+    systemPrompt: patch.systemPrompt ?? '',
+    createdAt: patch.createdAt || Date.now(),
+    /** Vrai quand un test de connexion a réussi. */
+    verified: !!patch.verified,
+  };
+}
+
+/**
+ * Le fournisseur actif, ou un fournisseur virtuel construit à partir de
+ * l'ancienne configuration unique (pour ne rien perdre d'une installation
+ * existante). `null` quand rien n'est configuré.
+ */
+export function activeProvider(ai = getAiConfig()) {
+  const list = Array.isArray(ai.providers) ? ai.providers : [];
+  if (list.length) {
+    return list.find((item) => item.id === ai.activeProvider) || list[0];
+  }
+  // Ancienne forme : ai.baseUrl / ai.apiKey / ai.model à la racine.
+  if (ai.baseUrl || ai.apiKey || (ai.models && ai.models.length)) {
+    return makeProvider({
+      id: 'legacy',
+      name: findAiPreset(ai.preset || 'custom').label,
+      preset: ai.preset || 'custom',
+      baseUrl: ai.baseUrl,
+      apiKey: ai.apiKey,
+      models: ai.models,
+      model: ai.model,
+      extraHeaders: ai.extraHeaders,
+      temperature: ai.temperature,
+      maxTokens: ai.maxTokens,
+      contextTokens: ai.contextTokens,
+      thinking: ai.thinking,
+      supportsImages: ai.supportsImages,
+      systemPrompt: ai.systemPrompt,
+    });
+  }
+  return null;
+}
+
 /** Vrai quand un fournisseur IA est assez configuré pour être proposé aux éditeurs. */
 export function aiIsConfigured(ai = getAiConfig()) {
-  return !!(ai.enabled && ai.baseUrl && ai.model);
+  if (!ai.enabled) return false;
+  const provider = activeProvider(ai);
+  return !!(provider && provider.baseUrl && provider.model);
+}
+
+/** Remplacer un fournisseur par sa version modifiée (ou l'ajouter). */
+export function upsertProvider(ai, provider) {
+  const list = Array.isArray(ai.providers) ? [...ai.providers] : [];
+  const at = list.findIndex((item) => item.id === provider.id);
+  if (at < 0) list.push(provider);
+  else list[at] = provider;
+  return { ...ai, providers: list, activeProvider: ai.activeProvider || provider.id };
+}
+
+/** Retirer un fournisseur ; l'actif passe au suivant s'il le fallait. */
+export function removeProvider(ai, id) {
+  const list = (ai.providers || []).filter((item) => item.id !== id);
+  return {
+    ...ai,
+    providers: list,
+    activeProvider: ai.activeProvider === id ? list[0]?.id || '' : ai.activeProvider,
+  };
+}
+
+/** Les modèles connus du fournisseur actif (liste dédoublonnée). */
+export function activeModels(ai = getAiConfig()) {
+  const provider = activeProvider(ai);
+  return provider ? [...new Set(provider.models || [])] : [];
 }
 
 /** Fournisseur préréglé correspondant à l'identifiant, ou le préréglage « personnalisé ». */

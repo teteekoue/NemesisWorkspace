@@ -605,9 +605,16 @@ export function canAI() {
   return optionState.aiFeatures !== false && hasAI();
 }
 
-/** Whether Puter's AI is there at all, whether or not the AI features are turned on in Options. */
+/**
+ * Whether an AI provider is ready, whether or not the AI features are turned
+ * on in Options. The local SDK always exposes `ai.chat`, so its presence is
+ * not the question: `canChat()` says whether a provider is configured.
+ */
 export function hasAI() {
-  return !!window.puter?.ai?.chat;
+  const ai = window.puter?.ai;
+  if (!ai?.chat) return false;
+  if (typeof ai.canChat === 'function') return !!ai.canChat();
+  return true;
 }
 
 /** How much a web address may serve to a formula or a picture: plenty for any sheet the cell budgets allow, not enough to fill memory. */

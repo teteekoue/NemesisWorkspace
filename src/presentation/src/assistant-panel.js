@@ -227,6 +227,68 @@ export function createAssistantPanel(env) {
     "aria-label": "Message the assistant",
     enterkeyhint: "send",
   });
+  // Une image jointe à une question (une capture d'écran, une photo).
+  const images = [];
+  const imageRow = el("div", { class: "ai-attachments" });
+  const filePicker = el("input", {
+    type: "file",
+    accept: "image/png,image/jpeg,image/webp,image/gif",
+    multiple: true,
+    hidden: true,
+  });
+  const attachBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "ai-attach",
+      "aria-label": "Attach an image",
+      title: "Attach an image",
+      onclick: () => filePicker.click(),
+    },
+    icon("Image", 16),
+  );
+  filePicker.addEventListener("change", () => {
+    for (const file of [...(filePicker.files || [])].slice(0, 4)) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        images.push({
+          name: file.name,
+          media: file.type || "image/png",
+          data: String(reader.result).split(",")[1] || "",
+        });
+        paintImages();
+      };
+      reader.readAsDataURL(file);
+    }
+    filePicker.value = "";
+  });
+  function paintImages() {
+    imageRow.replaceChildren(
+      ...images.map((image, at) =>
+        el(
+          "span",
+          { class: "ai-attachment" },
+          el("img", {
+            src: `data:${image.media};base64,${image.data}`,
+            alt: image.name,
+          }),
+          el(
+            "button",
+            {
+              type: "button",
+              title: "Remove",
+              "aria-label": `Remove ${image.name}`,
+              onclick: () => {
+                images.splice(at, 1);
+                paintImages();
+              },
+            },
+            "×",
+          ),
+        ),
+      ),
+    );
+  }
   const sendBtn = el("button", {
     type: "submit",
     class: "ai-send",
@@ -251,7 +313,9 @@ export function createAssistantPanel(env) {
       },
     },
     el("div", { class: "ai-composer-top" }, chip),
-    el("div", { class: "ai-input-wrap" }, input, sendBtn),
+    imageRow,
+    el("div", { class: "ai-input-wrap" }, attachBtn, input, sendBtn),
+    filePicker,
     el(
       "p",
       { class: "ai-disclaimer" },
@@ -483,12 +547,24 @@ export function createAssistantPanel(env) {
   }
   const mdOptions = { refs, onRef: (n) => env.goToSlide(n) };
 
-  function userBubble(text) {
+  function userBubble(text, attached = []) {
     empty.remove();
     log.append(
       el(
         "div",
         { class: "ai-msg ai-user" },
+        attached.length
+          ? el(
+              "div",
+              { class: "ai-user-images" },
+              ...attached.map((image) =>
+                el("img", {
+                  src: `data:${image.media};base64,${image.data}`,
+                  alt: image.name,
+                }),
+              ),
+            )
+          : null,
         el("div", { class: "ai-bubble", dir: "auto" }, text),
       ),
     );
@@ -729,8 +805,10 @@ export function createAssistantPanel(env) {
     }
     input.value = "";
     autoGrow();
-    userBubble(message);
-    exchange((onEvent) => agent.send(message, onEvent));
+    const attached = images.splice(0, images.length);
+    paintImages();
+    userBubble(message, attached);
+    exchange((onEvent) => agent.send(message, onEvent, attached));
   }
 
   async function exchange(start) {

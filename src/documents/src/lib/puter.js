@@ -396,9 +396,18 @@ export async function kvSet(key, value) {
 
 /* ---------- AI ---------- */
 
-/** Whether Puter's AI is reachable (puter.ai.chat). */
+/**
+ * Whether an AI provider is ready. The local SDK always has `ai.chat`, so its
+ * presence says nothing: what counts is that a provider is configured and
+ * enabled in Settings ▸ AI.
+ */
 export function canUseAi() {
-  return typeof sdk()?.ai?.chat === 'function';
+  try {
+    if (sdk()?.isLocal) return !!sdk()?.ai?.canChat?.();
+    return typeof sdk()?.ai?.chat === 'function';
+  } catch {
+    return false;
+  }
 }
 
 /** One chat completion for a prompt; resolves the SDK's response object. */

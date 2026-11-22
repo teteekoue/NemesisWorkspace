@@ -85,7 +85,12 @@
 .as-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
 .as-suggestion { padding: 6px 10px; border: 1px solid var(--ed-line); border-radius: 999px; background: var(--ed-card); color: var(--ed-ink); font: 12.5px/1.3 var(--font); cursor: pointer; text-align: left; }
 .as-suggestion:hover, .as-suggestion:focus-visible { border-color: var(--ed-accent); background: var(--ed-hover); }
-.as-message { padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; }
+.as-message { position: relative; padding: 10px 12px; border-radius: 14px; font-size: 13px; line-height: 1.5; max-width: 100%; }
+.as-message.is-me { border-bottom-right-radius: 5px; }
+.as-message.is-assistant { border-bottom-left-radius: 5px; }
+.as-message.is-me::after, .as-message.is-assistant::before { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ed-ink-3); display: block; margin-bottom: 4px; }
+.as-message.is-me::after { content: 'Vous'; text-align: right; }
+.as-message.is-assistant::before { content: 'Assistant'; }
 .as-message p { margin: 0 0 6px; }
 .as-message p:last-child { margin-bottom: 0; }
 .as-message.is-me { align-self: flex-end; max-width: 88%; background: var(--ed-accent-wash, var(--accent-wash)); }
@@ -106,7 +111,19 @@
 .as-context { margin: 0; font-size: 12px; color: var(--ed-ink-3); }
 .as-context.is-over { color: var(--critical); }
 .as-box { display: flex; gap: 6px; align-items: flex-end; }
-.as-input { flex: 1; resize: vertical; min-height: 60px; font-size: 13px; }
+.as-input { flex: 1; resize: none; min-height: 62px; max-height: 190px; font-size: 13px; line-height: 1.5; border-radius: 12px; padding: 9px 11px; }
+.as-box { position: relative; align-items: stretch; }
+.as-box-actions { display: flex; flex-direction: column; gap: 4px; justify-content: flex-end; }
+.as-attach { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--ed-line); background: var(--ed-card); color: var(--ed-ink-2); cursor: pointer; }
+.as-attach:hover { border-color: var(--ed-accent); color: var(--ed-accent); }
+.as-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-attachment { position: relative; width: 56px; height: 56px; border-radius: 9px; overflow: hidden; border: 1px solid var(--ed-line); background: var(--ed-card); }
+.as-attachment img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.as-attachment button { position: absolute; top: 1px; right: 1px; width: 16px; height: 16px; border: 0; border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; font-size: 11px; line-height: 1; cursor: pointer; padding: 0; }
+.as-message .as-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.as-message .as-images img { max-width: 120px; max-height: 90px; border-radius: 8px; border: 1px solid var(--ed-line); }
+.as-provider-line { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ed-ink-3); }
+.as-provider-line .as-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pos); }
 .as-disclaimer { margin: 0; font-size: 11px; color: var(--ed-ink-3); }
 /* It rises above the page thumbnails while they show (document-views.js sets the strip's height). */
 .as-fab { position: absolute; right: 18px; bottom: calc(18px + var(--view-thumbnails-height, 0px)); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--ed-line); background: var(--ed-card); box-shadow: 0 4px 14px rgba(0, 0, 0, .14); display: grid; place-items: center; cursor: pointer; z-index: 3; }
@@ -121,4 +138,20 @@
   .as-fab { right: 12px; bottom: calc(12px + var(--view-thumbnails-height, 0px)); }
   .cl-chip { display: none; }
   .cl-banner { padding: 6px 12px; font-size: 12.5px; }
+}
+
+/* ---- Assistant : les étapes de l'agent ---- */
+.as-steps {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.as-step {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.as-step.is-failed {
+  color: var(--danger, #b4232b);
 }
