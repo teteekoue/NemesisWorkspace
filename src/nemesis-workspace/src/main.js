@@ -16,11 +16,12 @@ import { loadConfig } from '../../shared/config.js';
 import { isNative, platform, setNativeTheme } from '../../shared/bridge.js';
 import { mountHome } from './shell/home.js';
 import { el } from './ui/dom.js';
+import { prefer, remember } from '../../shared/prefs.js';
 
 /* ---------- thème ---------- */
 
 function applyTheme() {
-  const stored = localStorage.getItem('nemesis:theme');
+  const stored = prefer('nemesis:theme');
   const configured = loadConfig().theme;
   const theme = stored || (configured === 'system' || !configured ? null : configured);
   if (theme) document.documentElement.dataset.theme = theme;
@@ -36,7 +37,13 @@ function applyTheme() {
 /* ---------- démarrage ---------- */
 
 async function start() {
-  applyTheme();
+  // Rien de ce qui précède l'affichage ne doit pouvoir empêcher l'affichage :
+  // un thème non mémorisable ou un stockage fermé ne sont pas des pannes.
+  try {
+    applyTheme();
+  } catch (error) {
+    console.warn('[Nemesis] thème non appliqué', error);
+  }
   installLocalSdk();
   document.documentElement.dataset.platform = platform();
   if (isNative()) document.documentElement.classList.add('is-native');
@@ -44,8 +51,10 @@ async function start() {
   const root = document.getElementById('root');
   try {
     mountHome(root);
+    document.getElementById('boot-fallback')?.setAttribute('hidden', '');
   } catch (error) {
     console.error(error);
+    window.__nemesisBootError = error?.message || String(error);
     root.replaceChildren(
       el(
         'div.fatal',

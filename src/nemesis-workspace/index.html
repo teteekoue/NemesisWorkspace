@@ -27,6 +27,62 @@
       <div class="wall-grid"></div>
     </div>
     <div id="root"></div>
+    <!-- Filet de sécurité : une panne de script ne doit jamais donner un écran
+         blanc muet. L'accueil se monte et remplace ce message. -->
+    <div id="boot-fallback" hidden>
+      <h1>NemesisWorkspace n’a pas pu démarrer</h1>
+      <p id="boot-detail"></p>
+      <p class="boot-hint">Vos fichiers ne sont pas perdus : ils restent dans le stockage de l’application.</p>
+      <button type="button" onclick="location.reload()">Recharger</button>
+    </div>
+    <style>
+      #boot-fallback {
+        position: relative;
+        z-index: 2;
+        max-width: 54ch;
+        margin: 12vh auto;
+        padding: 26px;
+        border-radius: 16px;
+        background: #fff;
+        color: #10142b;
+        font-family: system-ui, sans-serif;
+        line-height: 1.6;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+      }
+      #boot-fallback h1 { font-size: 19px; margin: 0 0 8px; }
+      #boot-fallback p { font-size: 13.5px; margin: 0 0 10px; }
+      #boot-fallback .boot-hint { color: #6b7295; }
+      #boot-fallback button {
+        margin-top: 8px;
+        padding: 9px 16px;
+        border: 0;
+        border-radius: 9px;
+        background: #6f5bff;
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+    <script>
+      // Si le module principal n'a pas monté l'interface au bout de 6 s, le
+      // dire plutôt que de laisser une page vide.
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        var fallback = document.getElementById('boot-fallback');
+        if (!fallback || (root && root.childElementCount)) return;
+        var detail = document.getElementById('boot-detail');
+        if (detail) detail.textContent = window.__nemesisBootError || 'Le script de l’accueil ne s’est pas exécuté.';
+        fallback.hidden = false;
+      }, 6000);
+      window.addEventListener('error', function (event) {
+        window.__nemesisBootError = (event && event.message) || 'Erreur de chargement.';
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event && event.reason;
+        window.__nemesisBootError = (reason && (reason.message || String(reason))) || 'Erreur inattendue.';
+      });
+    </script>
     <noscript>
       <p style="padding: 32px; font-family: system-ui">
         NemesisWorkspace a besoin de JavaScript pour fonctionner. Vos fichiers restent sur votre

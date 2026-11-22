@@ -22,6 +22,7 @@ import { loadWorkspace, markOpened, saveWorkspace, openedAt } from './store.js';
 import { listBackups, backupsUsage, restoreBackup, exportVersion, BACKUP_ROOT } from '../backups/backups.js';
 import { openSettings } from '../settings/settings.js';
 import { getAiConfig, aiIsConfigured, loadConfig } from '../../../shared/config.js';
+import { remember } from '../../../shared/prefs.js';
 
 /* ------------------------------------------------------------------ */
 /* Description des applications                                        */
@@ -624,7 +625,7 @@ export function mountHome(root) {
         const current = document.documentElement.dataset.theme;
         const next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
-        localStorage.setItem('nemesis:theme', next);
+        remember('nemesis:theme', next);
       },
     },
     icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon', 18),

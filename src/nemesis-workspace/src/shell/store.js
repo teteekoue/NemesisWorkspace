@@ -12,6 +12,8 @@
  * le système de fichiers local, lu à chaque affichage.
  */
 
+import { prefer, remember } from '../../../shared/prefs.js';
+
 const KEY = 'nemesis:workspace:v1';
 
 const DEFAULTS = {
@@ -30,7 +32,7 @@ let cache = null;
 export function loadWorkspace() {
   if (cache) return cache;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = prefer(KEY);
     cache = raw ? { ...DEFAULTS, ...JSON.parse(raw) } : { ...DEFAULTS };
   } catch {
     cache = { ...DEFAULTS };
@@ -43,7 +45,7 @@ export function saveWorkspace(patch) {
   const next = { ...loadWorkspace(), ...patch };
   cache = next;
   try {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    remember(KEY, JSON.stringify(next));
   } catch {
     /* stockage plein ou navigation privée : l'accueil reste utilisable */
   }

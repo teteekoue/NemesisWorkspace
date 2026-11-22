@@ -12,6 +12,8 @@
  *  - `storage` sauvegardes locales automatiques
  */
 
+import { prefer, remember } from './prefs.js';
+
 export const CONFIG_KEY = 'nemesis:config:v1';
 export const CONFIG_EVENT = 'nemesis:config';
 
@@ -186,7 +188,7 @@ export function defaultConfig() {
 
 export function loadConfig() {
   try {
-    const raw = localStorage.getItem(CONFIG_KEY);
+    const raw = prefer(CONFIG_KEY);
     if (!raw) return defaultConfig();
     return merge(defaultConfig(), JSON.parse(raw));
   } catch {
@@ -205,7 +207,7 @@ export function onConfigChange(handler) {
 export function saveConfig(next) {
   const value = merge(defaultConfig(), next);
   try {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(value));
+    remember(CONFIG_KEY, JSON.stringify(value));
   } catch (error) {
     console.warn('[Nemesis] configuration non enregistrée', error);
   }
