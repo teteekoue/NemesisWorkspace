@@ -199,6 +199,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onReceivedError(
+                view: WebView,
+                request: WebResourceRequest,
+                error: android.webkit.WebResourceError,
+            ) {
+                Log.w(TAG, "échec de chargement ${request.url} : ${error.description}")
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView,
+                request: WebResourceRequest,
+                response: WebResourceResponse,
+            ) {
+                Log.w(TAG, "réponse ${response.statusCode} pour ${request.url}")
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 deliverIncoming()
@@ -227,8 +243,11 @@ class MainActivity : AppCompatActivity() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                 // Les messages de la page restent dans le journal du système :
                 // une panne d'affichage se diagnostique sans outil spécial.
-                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                val level = message.messageLevel()
+                if (level == ConsoleMessage.MessageLevel.ERROR) {
                     Log.w(TAG, "page: ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                } else {
+                    Log.i(TAG, "page: [${level}] ${message.message()}")
                 }
                 return true
             }

@@ -292,7 +292,8 @@ jobs:
           $ADB exec-out screencap -p > verification/ecran-emulateur.png || true
           ls -l verification/ecran-emulateur.png || true
           # Ce que l'interface affiche vraiment, d'après son propre journal.
-          $ADB logcat -d -s NemesisWorkspace:I > verification/journal.txt || true
+          $ADB logcat -d | grep -E "NemesisWorkspace|chromium|Console" > verification/journal.txt || true
+          tail -n 25 verification/journal.txt
           grep "interface prête" verification/journal.txt || fail "l'interface n'a pas signalé son affichage"
           python3 - <<'PYEOF'
           import json, re, sys
