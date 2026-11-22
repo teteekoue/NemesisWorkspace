@@ -223,7 +223,8 @@ jobs:
             for f in /tmp/build.log /tmp/gradle.log; do
               [ -f "$f" ] || continue
               echo "\`\`\`"
-              tail -n 60 "$f"
+              # Les lignes qui expliquent l'échec, pas la pile d'appels.
+              grep -E "^e: |^w: .*error|error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed" "$f" | tail -n 40 || true
               echo "\`\`\`"
             done
           } > "$REPORT"
