@@ -300,14 +300,16 @@ class MainActivity : AppCompatActivity() {
      * zone de saisie. Rien n'est masqué par une barre système.
      */
     private fun applyInsets(view: WebView) {
-        ViewCompat.setOnApplyWindowInsetsListener(view) { target, insets ->
+        // La vue reçue par l'écouteur est un `View` : c'est la nôtre qui sait
+        // exécuter du code dans la page.
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
             )
             val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val density = resources.displayMetrics.density
             fun css(px: Int) = (px / density).toInt()
-            target.evaluateJavascript(
+            view.evaluateJavascript(
                 "(()=>{const s=document.documentElement.style;" +
                     "s.setProperty('--safe-top','${css(bars.top)}px');" +
                     "s.setProperty('--safe-right','${css(bars.right)}px');" +
