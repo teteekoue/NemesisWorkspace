@@ -492,7 +492,7 @@ export function createAssistantPanel(env) {
       el(
         "p",
         { class: "ai-empty-text" },
-        "The assistant reads every slide and can add slides, rewrite and format text, arrange objects, build tables, and write speaker notes. Every change it makes can be undone.",
+        "It can add slides, rewrite and format text, arrange objects and write speaker notes. Every change can be undone.",
       ),
       // Buttons in list items: a button given the listitem role stops being
       // announced as something to press.
@@ -514,11 +514,6 @@ export function createAssistantPanel(env) {
             ),
           ),
         ),
-      ),
-      el(
-        "p",
-        { class: "ai-privacy" },
-        "Your messages and the slides the assistant reads are sent to the AI provider you configured in Settings.",
       ),
     );
   }

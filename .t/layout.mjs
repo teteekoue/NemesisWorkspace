@@ -106,5 +106,16 @@ for (const [app, css] of [['documents', documents], ['spreadsheet', spreadsheet]
   check(`${app} : champ plafonné à 128 px`, box.max === 128, JSON.stringify(box));
 }
 
+// 5. Rien sous la barre de saisie : ni mention légale, ni compte de mots.
+//    Creuser le bas du panneau gênait l'organisation, dans les trois éditeurs.
+const clean = {
+  documents: !/\.as-disclaimer/.test(documents),
+  spreadsheet: !/\.ai-disclaimer/.test(spreadsheet),
+  presentation: !/\.ai-privacy/.test(cssOf('presentation')),
+};
+for (const [app, ok] of Object.entries(clean)) {
+  check(`${app} : aucune mention sous la barre de saisie`, ok, 'une règle de mention subsiste');
+}
+
 console.log(`\n${pass} réussite(s), ${fails.length} échec(s)`);
 if (fails.length) { console.log('Échecs :', fails.join(', ')); process.exit(1); }

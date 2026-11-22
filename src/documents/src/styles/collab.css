@@ -78,10 +78,13 @@
    occupe la hauteur, et un composeur en carte qui reste en bas. Un seul endroit
    à retenir pour les trois éditeurs. */
 .as-pane {
+  /* Une colonne souple : elle cède de la place à la page avant de la pousser
+     hors de l'écran, et ne dépasse jamais ce qui reste lisible sur un petit
+     écran (voir les requêtes ci-dessous). */
   width: 380px;
-  flex-basis: 380px;
+  flex: 0 1 380px;
+  min-width: 260px;
   max-width: 60vw;
-  flex-shrink: 0;
 }
 .as-pane .canvas-panel-heading {
   display: flex;
@@ -95,6 +98,7 @@
   flex: none;
   border-bottom: 1px solid var(--ed-line, var(--hairline));
 }
+.as-pane .canvas-panel-heading > * { flex-shrink: 0; }
 .as-pane .canvas-panel-heading h2 {
   display: flex;
   align-items: center;
@@ -219,7 +223,7 @@
 .as-form {
   flex: none;
   gap: 0;
-  padding: 0 12px 10px;
+  padding: 0 10px 10px;
   border-top: 0;
 }
 .as-box {
@@ -309,9 +313,25 @@
 }
 .as-message .as-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .as-message .as-images img { max-width: 120px; max-height: 90px; border-radius: 8px; border: 1px solid var(--ed-line, var(--hairline)); }
-.as-provider-line { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ed-ink-3, var(--ink-3)); margin: 6px 2px 0; }
-.as-provider-line .as-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pos, #1a7f37); flex: none; }
-.as-disclaimer { margin: 6px 2px 0; font-size: 11px; color: var(--ed-ink-3, var(--ink-3)); text-align: center; }
+/* La pastille du fournisseur, dans le titre : un point et un nom, pas une ligne. */
+.as-provider-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 40%;
+  margin-left: auto;
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  background: var(--ed-hover, var(--surface-2));
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ed-ink-3, var(--ink-3));
+  white-space: nowrap;
+}
+.as-provider-line .as-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--pos, #1a7f37); flex: none; }
+.as-provider-line.is-missing .as-dot { background: var(--critical, #b4232b); }
+.as-provider-name { overflow: hidden; text-overflow: ellipsis; }
 /* Le sélecteur de portée, discret : deux choix dans une pastille. */
 .as-scope {
   display: inline-flex;
@@ -331,6 +351,7 @@
   cursor: pointer;
 }
 .as-scope-option[aria-checked='true'] { background: var(--ed-hover, var(--surface-2)); color: var(--ed-ink, var(--ink)); font-weight: 600; }
+.as-scope-option.is-over { color: var(--critical, #b4232b); }
 .as-scope-option:disabled { opacity: .45; cursor: default; }
 .as-context { margin: 0; font-size: 11.5px; color: var(--ed-ink-3, var(--ink-3)); }
 .as-context.is-over { color: var(--critical, #b4232b); }
@@ -340,6 +361,10 @@
 @media (hover: hover) { .as-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .18); } }
 .as-fab[aria-expanded='true'], .as-fab[hidden], .as-title-button[hidden] { display: none; }
 
+@media (max-width: 1024px) {
+  .as-pane { width: 320px; flex-basis: 320px; max-width: 46vw; }
+  .as-pane .canvas-panel-heading .as-new { display: none; }
+}
 @media (max-width: 640px) {
   .as-title-button { display: none; }
   .as-pane, .vh-pane { width: 100%; flex-basis: auto; }

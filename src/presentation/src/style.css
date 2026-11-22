@@ -3128,12 +3128,6 @@ body:has(.presenter[open]) #toast {
 .ai-suggestion:hover {
   border-color: var(--line);
 }
-.ai-privacy {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
 .ai-msg {
   font-size: 13.5px;
   line-height: 1.5;

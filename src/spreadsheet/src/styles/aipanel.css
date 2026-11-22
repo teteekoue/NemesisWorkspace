@@ -407,7 +407,6 @@ body.dropping.dropping-local::after { display: none; }
 .ai-send.stopping { background: var(--ink); color: var(--surface); }
 /* Stop is the square every media control uses, filled. */
 .ai-send.stopping svg { fill: currentColor; }
-.ai-disclaimer { margin: 6px 2px 0; font-size: 11px; color: var(--ink-3); text-align: center; }
 
 /* Under 16px iOS Safari zooms into a focused field. */
 @media (pointer: coarse) { .ai-input { font-size: 16px; } }

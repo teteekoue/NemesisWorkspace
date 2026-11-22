@@ -42,6 +42,23 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
   const undoSteps = new Map();
   const pane = sidePane({ title: 'Assistant', label: 'Assistant pane', className: 'as-pane', onOpen: () => { renderContext(); renderEmpty(); fab.setAttribute('aria-expanded', 'true'); titleButton.setAttribute('aria-pressed', 'true'); }, onClose: () => { fab.setAttribute('aria-expanded', 'false'); titleButton.setAttribute('aria-pressed', 'false'); editor()?.focus(); } });
   pane.heading.prepend(el('span.as-mark', { 'aria-hidden': 'true' }, commandIconEl('assistant', 16)));
+  // Le fournisseur se lit dans l'en-tête, en pastille : le nom seul, le modèle
+  // au survol. Il prenait une ligne sous le champ, qui encombrait le bas.
+  const providerLine = el('span.as-provider-line');
+  function paintProvider() {
+    const provider = providerInfo();
+    const ready = !!provider;
+    providerLine.classList.toggle('is-missing', !ready);
+    providerLine.title = ready
+      ? `${provider.name} · ${provider.model}`
+      : 'Aucun fournisseur prêt — ouvrez Paramètres ▸ Intelligence artificielle.';
+    providerLine.replaceChildren(
+      el('span.as-dot', { 'aria-hidden': 'true' }),
+      el('span.as-provider-name', {}, ready ? provider.name : 'Aucun fournisseur'),
+    );
+  }
+  // `pane.heading` EST le titre (le <h2>) : la pastille s'y ajoute.
+  pane.heading.append(providerLine);
   const newChat = el('button.btn.btn-ghost.btn-sm.as-new', { type: 'button', onclick: () => { stopped = null; busy = false; send.disabled = false; history = []; log.replaceChildren(); renderEmpty(); input.focus(); } }, 'New chat');
   pane.heading.after(newChat);
 
@@ -60,7 +77,9 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     const next = choices[(at + step + choices.length) % choices.length];
     scope = next === scopeSelection ? 'selection' : 'document'; renderContext(); renderEmpty(); next.focus();
   });
-  const context = el('p.as-context', { 'aria-live': 'polite' });
+  // Rien ne s'affiche sous le champ, mais une région d'annonce dit aux lecteurs
+  // d'écran ce que le message emporte (le texte visible est dans les titres).
+  const context = el('p.visually-hidden', { 'aria-live': 'polite' });
   const input = el('textarea.as-input', { rows: 2, placeholder: 'Ask about this document, or ask for a draft or a rewrite…', 'aria-label': 'Message the assistant', enterKeyHint: 'send' });
   const send = el('button.as-send', { type: 'submit', 'aria-label': 'Send', title: 'Send (Enter)' }, commandIconEl('arrowUp', 18));
   // Une image jointe à une question : le fournisseur réglé doit l'accepter.
@@ -84,25 +103,15 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
       el('span.as-attachment', {}, el('img', { src: `data:${item.media};base64,${item.data}`, alt: item.name }),
         el('button', { type: 'button', title: 'Retirer', 'aria-label': `Retirer ${item.name}`, onclick: () => { attachments.splice(at, 1); paintAttachments(); } }, '×'))));
   }
-  const providerLine = el('p.as-provider-line');
-  function paintProvider() {
-    const provider = providerInfo();
-    providerLine.replaceChildren(
-      provider
-        ? el('span', {}, el('span.as-dot'), ` ${provider.name} · ${provider.model}`)
-        : el('span', {}, 'Aucun fournisseur prêt — ouvrez Paramètres ▸ Intelligence artificielle.'),
-    );
-  }
-  // Le composeur : le champ dans une carte, les outils sur sa rangée du bas.
+  // Le composeur : la carte de saisie seule, rien en dessous. Le compte de
+  // mots vit dans la pastille de portée, le fournisseur dans l'en-tête : trois
+  // lignes de texte sous le champ encombraient le bas du panneau.
   const form = el('form.as-form', { onsubmit: e => { e.preventDefault(); submit(input.value); } },
     el('div.as-box', {},
       input,
       attachRow,
       el('div.as-box-row', {}, scopeGroup, el('div.as-box-actions', {}, attachButton, send))),
-    fileInput,
-    el('div.as-box-row', {}, context),
-    el('p.as-disclaimer', {}, 'Only the text and images shown above are sent to your AI provider. Replies can be wrong: check them before you use them.'),
-    providerLine);
+    fileInput);
   // Le champ s'ajuste au texte : deux lignes au repos, jamais plus de huit
   // (le reste défile), et il reprend sa taille une fois le message parti.
   function autoGrow() {
@@ -160,8 +169,17 @@ export function createAssistantPane({ editor, pkg, error, available = () => P.ca
     scopeSelection.disabled = !s;
     const p = payload();
     const count = p ? words(p.text) : 0;
-    context.textContent = !p ? 'Nothing selected.' : scope === 'selection' ? `Sends the ${plural(count, 'word')} you selected.` : `Sends the whole document (${plural(count, 'word')}).`;
-    context.classList.toggle('is-over', !!p && p.text.length > MAX_ASSISTANT_CHARS);
+    // Le nombre de mots se lit sur l'option choisie, et le titre au survol :
+    // une ligne de moins sous le champ.
+    scopeSelection.textContent = 'Selection';
+    scopeDocument.textContent = `${plural(count, 'word')}`;
+    context.textContent = !p ? 'Nothing to send.' : scope === 'selection'
+      ? `Sends the ${plural(count, 'word')} you selected.`
+      : `Sends the whole document (${plural(count, 'word')}).`;
+    scopeSelection.title = s ? `Sends the ${plural(words(s.text), 'word')} you selected` : 'Select a passage first';
+    scopeDocument.title = p ? `Sends the whole document (${plural(count, 'word')})` : 'Nothing to send';
+    for (const option of [scopeSelection, scopeDocument]) option.classList.remove('is-over');
+    if (p && p.text.length > MAX_ASSISTANT_CHARS) (scope === 'selection' ? scopeSelection : scopeDocument).classList.add('is-over');
   }
   function renderEmpty() {
     if (log.querySelector('.as-message')) { empty.remove(); return; }

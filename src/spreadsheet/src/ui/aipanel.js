@@ -225,9 +225,9 @@ export function createAiPanel(ctx, env, { onToggle, onBusy } = {}) {
     input,
     el('div.ai-input-bar', {}, attachBtn, contextChip, sendBtn),
     fileInput);
-  const form = el('form.ai-composer', { onsubmit: (e) => { e.preventDefault(); if (agent.busy) stop(); else submit(); } },
-    inputWrap,
-    el('p.ai-disclaimer', {}, t('aipanel.disclaimer')));
+  // Le composeur s'arrête à la carte de saisie : une mention légale sous le
+  // champ alourdissait le bas du panneau, dans les trois éditeurs.
+  const form = el('form.ai-composer', { onsubmit: (e) => { e.preventDefault(); if (agent.busy) stop(); else submit(); } }, inputWrap);
 
   const resizer = el('div.ai-resize', {
     role: 'separator', 'aria-orientation': 'vertical', 'aria-label': t('aipanel.resize'), tabIndex: 0,
