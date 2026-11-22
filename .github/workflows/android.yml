@@ -288,6 +288,16 @@ jobs:
           $ADB shell "run-as com.nemesisworkspace.app ls files" >/dev/null 2>&1 || true
           $ADB exec-out screencap -p > verification/ecran-emulateur.png || true
           ls -l verification/ecran-emulateur.png || true
+          # L'écran doit avoir du contenu : un écran vide, blanc ou noir uni
+          # n'a presque aucun écart-type.
+          STATS=$(convert verification/ecran-emulateur.png -format "%[fx:mean] %[fx:standard_deviation]" info:)
+          echo "Écran — moyenne et écart-type : $STATS"
+          awk -v s="$STATS" 'BEGIN { split(s, a, " "); if (a[2] + 0 < 0.02) exit 1 }' \
+            || fail "l'écran est uni : rien ne s'est affiché"
+          # Le fond de l'application est sombre ; un écran presque blanc
+          # signalerait une page d'erreur.
+          awk -v s="$STATS" 'BEGIN { split(s, a, " "); if (a[1] + 0 > 0.9) exit 1 }' \
+            || fail "l'écran est blanc : une page d'erreur s'est affichée"
           if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
             echo "::notice::L'application tourne après installation."
           else
@@ -299,7 +309,9 @@ jobs:
             fail "l'application a planté"
           fi
           $ADB emu kill || true
-          kill $EMULATOR 2>/dev/null || true
+          kill "$EMULATOR" 2>/dev/null || true
+          echo "::notice::Installée, lancée, et son interface s'est affichée sur un appareil x86."
+          exit 0
 
       - name: Effacer la clé du disque
         if: always()
