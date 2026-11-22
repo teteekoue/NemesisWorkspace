@@ -288,16 +288,37 @@ jobs:
           $ADB shell "run-as com.nemesisworkspace.app ls files" >/dev/null 2>&1 || true
           $ADB exec-out screencap -p > verification/ecran-emulateur.png || true
           ls -l verification/ecran-emulateur.png || true
-          # L'écran doit avoir du contenu : un écran vide, blanc ou noir uni
-          # n'a presque aucun écart-type.
-          STATS=$(convert verification/ecran-emulateur.png -format "%[fx:mean] %[fx:standard_deviation]" info:)
-          echo "Écran — moyenne et écart-type : $STATS"
-          awk -v s="$STATS" 'BEGIN { split(s, a, " "); if (a[2] + 0 < 0.02) exit 1 }' \
-            || fail "l'écran est uni : rien ne s'est affiché"
-          # Le fond de l'application est sombre ; un écran presque blanc
-          # signalerait une page d'erreur.
-          awk -v s="$STATS" 'BEGIN { split(s, a, " "); if (a[1] + 0 > 0.9) exit 1 }' \
-            || fail "l'écran est blanc : une page d'erreur s'est affichée"
+          # Ce que l'interface affiche vraiment, d'après son propre journal.
+          $ADB logcat -d -s NemesisWorkspace:I > verification/journal.txt || true
+          grep "interface prête" verification/journal.txt || fail "l'interface n'a pas signalé son affichage"
+          python3 - <<'PYEOF'
+          import json, re, sys
+          line = [l for l in open('verification/journal.txt') if 'interface prête' in l][-1]
+          payload = json.loads(re.search(r'interface prête: (\{.*\})', line).group(1))
+          print('Rapport de l\'application :', payload)
+          if payload.get('error'):
+              sys.exit(1)
+          if not payload.get('title'):
+              print('::error::aucun titre : la page n\'a pas été rendue')
+              sys.exit(1)
+          if payload.get('body', 0) < 40:
+              print('::error::écran presque vide')
+              sys.exit(1)
+          PYEOF
+          # Et ce qu'on voit : un écran uni signalerait une page blanche.
+          python3 -m pip install --quiet --disable-pip-version-check pillow
+          python3 - <<'PYEOF'
+          from PIL import Image, ImageStat
+          image = Image.open('verification/ecran-emulateur.png').convert('L')
+          stats = ImageStat.Stat(image)
+          print('Écran %dx%d — moyenne %.3f, écart-type %.3f' % (
+              image.width, image.height, stats.mean[0] / 255, stats.stddev[0] / 255))
+          if stats.stddev[0] / 255 < 0.02:
+              raise SystemExit('écran uni : rien ne s\'est affiché')
+          if stats.mean[0] / 255 > 0.9:
+              raise SystemExit('écran blanc : une page d\'erreur s\'est affichée')
+          PYEOF
+
           if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
             echo "::notice::L'application tourne après installation."
           else

@@ -14,6 +14,7 @@ import android.os.Looper
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.util.Base64
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -205,11 +206,31 @@ class MainActivity : AppCompatActivity() {
                 // par le service d'impression Android, qui sait aussi produire
                 // un PDF.
                 view.evaluateJavascript(PRINT_BRIDGE, null)
+                // Ce que l'écran affiche réellement, dans le journal : utile
+                // sur un appareil qu'on ne peut pas brancher, et vérifiable par
+                // la construction.
+                view.evaluateJavascript(
+                    "(function(){try{" +
+                        "const cards=document.querySelectorAll('.tile,.card,.app-tile,[data-kind]').length;" +
+                        "return JSON.stringify({title:document.title,lang:document.documentElement.lang," +
+                        "width:Math.round(window.innerWidth),height:Math.round(window.innerHeight)," +
+                        "cards:cards,body:document.body.innerText.trim().length});" +
+                        "}catch(e){return JSON.stringify({error:String(e)});}})()",
+                ) { report ->
+                    Log.i(TAG, "interface prête: $report")
+                }
             }
         }
 
         web.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(message: ConsoleMessage): Boolean = true
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                // Les messages de la page restent dans le journal du système :
+                // une panne d'affichage se diagnostique sans outil spécial.
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    Log.w(TAG, "page: ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                }
+                return true
+            }
 
             override fun onShowFileChooser(
                 view: WebView,
@@ -690,6 +711,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val TAG = "NemesisWorkspace"
         const val APP_DOMAIN = "appassets.androidplatform.net"
         const val APP_ORIGIN = "https://$APP_DOMAIN"
 
