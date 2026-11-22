@@ -58,6 +58,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Installer les outils de compilation
+        run: |
+          set -euo pipefail
+          for app in documents spreadsheet presentation nemesis-workspace; do
+            echo "── src/$app"
+            (cd "src/$app" && npm ci --no-audit --no-fund --include=dev)
+          done
+
       - name: Compiler les trois éditeurs et l'accueil
         run: |
           set -euo pipefail
@@ -65,6 +73,8 @@ jobs:
           cd src/nemesis-workspace
           # Le journal complet reste lisible même si l'étape échoue.
           set -o pipefail
+          export NPM_CONFIG_PRODUCTION=false
+          export NPM_CONFIG_OMIT=""
           node dev/build-all.mjs 2>&1 | tee /tmp/build.log
           # Rien ne doit être servi depuis le réseau : l'interface doit
           # exister, en entier, avant d'entrer dans l'application.
