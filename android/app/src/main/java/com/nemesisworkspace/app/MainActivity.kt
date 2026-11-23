@@ -875,16 +875,30 @@ class MainActivity : AppCompatActivity() {
                 "};})();"
 
         /**
-         * Ferme ce que l'interface a ouvert (dialogue, aperçu, menu), et dit si
-         * quelque chose a été fermé.
+         * Ce que le retour doit fermer avant de remonter dans l'historique.
+         *
+         * Un vrai dialogue ouvert (`<dialog open>`, `aria-modal`), un menu en
+         * cours, ou le sélecteur des thèmes : l'interface les ferme comme le
+         * ferait Échap. Rien d'autre : `aria-expanded="true"` est aussi l'état
+         * d'un simple bouton dépliant, et fermer un volet de navigation ne doit
+         * pas empêcher le retour de fonctionner.
          */
-        private const val BACK_SCRIPT =
-            "(function(){try{" +
-                "const open=document.querySelector('dialog[open],[role=\"dialog\"]:not([hidden])');" +
-                "if(open){document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));" +
-                "window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true;}" +
-                "const menu=document.querySelector('.menu-open,.is-open.menu,[aria-expanded=\"true\"]');" +
-                "if(menu){document.body.click();return true;}" +
-                "return false;}catch(e){return false;}})()"
+        private val BACK_SCRIPT = """
+            (function () {
+              try {
+                var open = document.querySelector(
+                  'dialog[open], [aria-modal="true"], [data-modal-open="true"], .popover.is-open, .menu.is-open',
+                );
+                if (open) {
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                  return true;
+                }
+                return false;
+              } catch (e) {
+                return false;
+              }
+            })()
+        """.trimIndent()
     }
 }
