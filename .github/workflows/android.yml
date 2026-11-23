@@ -347,13 +347,15 @@ jobs:
           # l'application (il ne reste plus bloqué dans un dialogue imaginaire).
           $ADB shell input keyevent KEYCODE_BACK
           sleep 4
-          # Le processus de l'application (le moteur web a le sien : `ps` les
-          # confondrait, `pidof` non).
-          if $ADB shell "pidof com.nemesisworkspace.app" > /dev/null 2>&1; then
-            $ADB logcat -d | grep -F "retour :" | tail -3
-            $ADB shell dumpsys window | grep -m1 mCurrentFocus || true
-            fail "le bouton retour n'a pas quitté l'application depuis l'accueil"
-          fi
+          # Ce qui a le focus est la preuve : après le retour, ce n'est plus
+          # l'application. (Le processus, lui, peut survivre quelques secondes
+          # dans la liste des applications récentes.)
+          FOCUS=$($ADB shell dumpsys window | grep -m1 mCurrentFocus || true)
+          echo "$FOCUS"
+          case "$FOCUS" in
+            *com.nemesisworkspace.app*) $ADB logcat -d | grep -F "retour :" | tail -3
+              fail "le bouton retour n'a pas quitté l'application depuis l'accueil" ;;
+          esac
           echo "::notice::Le bouton retour quitte l'application depuis l'accueil."
 
           # Relancer montre de nouveau l'accueil : rien n'est resté cassé.

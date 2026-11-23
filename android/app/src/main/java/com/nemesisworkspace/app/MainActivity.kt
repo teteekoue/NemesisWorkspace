@@ -904,7 +904,9 @@ class MainActivity : AppCompatActivity() {
               try{
                 var cards=document.querySelectorAll('.tile,.card,.app-tile,[data-kind]').length;
                 var editing=!!document.querySelector('.ed-header, .editor-header, [data-view="editor"]');
-                return JSON.stringify({title:document.title,lang:document.documentElement.lang,
+                var root=document.documentElement;
+                if(!root||!document.body) return JSON.stringify({pending:true});
+                return JSON.stringify({title:document.title,lang:root.lang,
                   width:Math.round(window.innerWidth),height:Math.round(window.innerHeight),
                   cards:cards,body:document.body.innerText.trim().length,
                   root:(document.getElementById('root')||{childElementCount:0}).childElementCount,
