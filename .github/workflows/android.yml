@@ -462,3 +462,25 @@ jobs:
               --notes-file release/NOTES.md
           fi
           gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) octets"'
+
+      - name: Vérifier l'asset publié
+        if: github.event_name != 'pull_request' && (github.event.inputs.publish != 'false')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          exec > >(tee -a /tmp/published.log) 2>&1
+          set -uo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          TAG="android-v${VERSION_NAME}"
+          rm -rf published && mkdir published
+          gh release download "$TAG" --dir published --pattern '*.apk' \
+            || fail "l'asset publié n'est pas téléchargeable"
+          # Ce que reçoit un utilisateur est exactement ce qui a été vérifié.
+          ( cd published && sha256sum ./*.apk )
+          local_sum=$(sha256sum release/*.apk | cut -d' ' -f1)
+          remote_sum=$(sha256sum published/*.apk | cut -d' ' -f1)
+          [ "$local_sum" = "$remote_sum" ] || fail "l'asset publié diffère du paquet vérifié"
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify published/*.apk || fail "signature perdue à la publication"
+          echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide."
