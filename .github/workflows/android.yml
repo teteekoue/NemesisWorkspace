@@ -230,7 +230,7 @@ jobs:
           ANDROID="$ANDROID_HOME/cmdline-tools/latest/bin"
           yes 2>/dev/null | "$ANDROID/sdkmanager" --licenses >/dev/null 2>&1 || true
           "$ANDROID/sdkmanager" --install "emulator" "platform-tools" \
-            "system-images;android-30;google_apis;x86" >/dev/null || fail "téléchargement de l'émulateur impossible"
+            "system-images;android-26;google_apis;x86" >/dev/null || fail "téléchargement de l'émulateur impossible"
 
           APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
           echo "Paquet testé : $APK"
@@ -241,7 +241,7 @@ jobs:
           export ANDROID_AVD_HOME="$HOME/.android/avd"
           mkdir -p "$ANDROID_AVD_HOME"
           echo "no" | "$ANDROID/avdmanager" create avd \
-            -n nemesis -k "system-images;android-30;google_apis;x86" --force \
+            -n nemesis -k "system-images;android-26;google_apis;x86" --force \
             || fail "création de l'appareil virtuel impossible"
           CONFIG=$(find "$ANDROID_AVD_HOME" /home/runner -maxdepth 6 -name config.ini -path '*nemesis*' 2>/dev/null | head -1)
           [ -n "$CONFIG" ] || fail "configuration de l'appareil virtuel absente"

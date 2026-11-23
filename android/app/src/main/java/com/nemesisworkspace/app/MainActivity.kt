@@ -891,6 +891,43 @@ class MainActivity : AppCompatActivity() {
                   return this[index < 0 ? this.length + index : index];
                 };
               }
+              // Certains moteurs anciens n'ont pas le découpage en mots :
+              // une approximation suffit (les lettres et les chiffres font
+              // un mot, tout le reste un séparateur).
+              if (typeof Intl !== 'undefined' && typeof Intl.Segmenter !== 'function') {
+                var words = function (text) {
+                  var out = [];
+                  var buffer = '';
+                  var start = 0;
+                  var word = /[\p{L}\p{N}_]/u;
+                  for (var i = 0; i < text.length; i += 1) {
+                    var isWord = word.test(text[i]);
+                    if (i === 0) { buffer = text[i]; start = 0; continue; }
+                    if (isWord === word.test(buffer[buffer.length - 1])) {
+                      buffer += text[i];
+                    } else {
+                      out.push({ segment: buffer, index: start, input: text, isWordLike: word.test(buffer[0]) });
+                      buffer = text[i];
+                      start = i;
+                    }
+                  }
+                  if (buffer) out.push({ segment: buffer, index: start, input: text, isWordLike: word.test(buffer[0]) });
+                  return out;
+                };
+                var Segmenter = function (locale, options) {
+                  this.granularity = options && options.granularity;
+                };
+                Segmenter.prototype.segment = function (text) {
+                  var list = this.granularity === 'word' ? words(String(text))
+                    : Array.prototype.map.call(String(text), function (ch, i) {
+                        return { segment: ch, index: i, input: String(text) };
+                      });
+                  list[Symbol.iterator] = function () { return Array.prototype[Symbol.iterator].call(list); };
+                  return list;
+                };
+                Segmenter.supportedLocalesOf = function () { return []; };
+                Intl.Segmenter = Segmenter;
+              }
               if (typeof Promise.prototype.finally !== 'function') {
                 Promise.prototype.finally = function (done) {
                   return this.then(
