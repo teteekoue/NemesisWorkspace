@@ -372,6 +372,10 @@ jobs:
           if ! focus_is_app; then
             echo "--- ce que la page a affiché"
             $ADB logcat -d | grep -F "interface prête" | tail -4 | cut -c1-260
+            echo "--- décisions du bouton retour"
+            $ADB logcat -d | grep -F "retour :" | tail -4 | cut -c1-200
+            echo "--- fenêtre au premier plan"
+            $ADB shell dumpsys window | grep -m1 mCurrentFocus
             echo "--- erreurs de la page"
             $ADB logcat -d | grep -E "page: (Uncaught|TypeError|ReferenceError)" | tail -6 | cut -c1-260
             fail "le retour a quitté l'application depuis la liste des documents"
