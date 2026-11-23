@@ -924,6 +924,7 @@ class MainActivity : AppCompatActivity() {
                   root:(document.getElementById('root')||{childElementCount:0}).childElementCount,
                   editing:editing,
                   path:location.pathname,
+                  boot:String((window.__nemesisBootError||'')) .slice(0,300),
                   // La première tuile de l'accueil, en points CSS : de quoi
                   // la toucher depuis un appareil automatisé.
                   tuiles:(function(){var t=document.querySelectorAll('.app-card');

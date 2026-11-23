@@ -369,7 +369,7 @@ jobs:
           $ADB shell input keyevent KEYCODE_BACK
           sleep 12
           $ADB logcat -d | grep -F "interface prête" | tail -1
-          focus_is_app || fail "le retour a quitté l'application depuis la liste des documents"
+          focus_is_app || { $ADB logcat -d | grep -E "page:|boot" | tail -12; fail "le retour a quitté l'application depuis la liste des documents"; }
           $ADB logcat -d | grep -F "retour :" | tail -1
           $ADB shell input keyevent KEYCODE_BACK
           sleep 10
