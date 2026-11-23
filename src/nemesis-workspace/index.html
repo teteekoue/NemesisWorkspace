@@ -19,7 +19,10 @@
     <link rel="icon" type="image/png" href="./brand/nemesisworkspace-logo.png" />
     <link rel="apple-touch-icon" href="./brand/nemesisworkspace-logo.png" />
     <!-- Le SDK local s'installe avant que l'accueil ne lise le stockage. -->
-    <script type="module" src="/shared/local-sdk.js"></script>
+    <!-- Le raccord des moteurs anciens passe avant tout autre script :
+       une page ne doit jamais rester blanche faute d'une API récente. -->
+  <script type="module" src="/shared/compat.js"></script>
+  <script type="module" src="/shared/local-sdk.js"></script>
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
