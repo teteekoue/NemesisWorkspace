@@ -886,9 +886,22 @@ class MainActivity : AppCompatActivity() {
         private val BACK_SCRIPT = """
             (function () {
               try {
-                var open = document.querySelector(
-                  'dialog[open], [aria-modal="true"], [data-modal-open="true"], .popover.is-open, .menu.is-open',
-                );
+                // Ce qui est ouvert, et visible : les dialogues et les menus
+                // restent dans la page une fois fermés. Un nœud sans surface
+                // affichée ne doit pas retenir le retour.
+                var shown = function (node) {
+                  if (!node || !node.getClientRects) return false;
+                  if (node.getClientRects().length === 0) return false;
+                  var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+                  return !style || (style.visibility !== 'hidden' && style.display !== 'none');
+                };
+                var open = Array.prototype.filter.call(
+                  document.querySelectorAll('[aria-modal="true"], dialog[open], .popover.is-open, .menu.is-open'),
+                  function (node) {
+                    if (node.tagName === 'DIALOG' && !node.open) return false;
+                    return shown(node);
+                  },
+                )[0];
                 if (open) {
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
