@@ -215,6 +215,15 @@ class MainActivity : AppCompatActivity() {
                 Log.w(TAG, "réponse ${response.statusCode} pour ${request.url}")
             }
 
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                // Certains appareils n'ont jamais mis à jour leur moteur de
+                // rendu. Les méthodes de DOM récentes sont complétées ici,
+                // avant que l'interface ne commence à s'afficher : c'est la
+                // différence entre un écran vide et l'application.
+                view.evaluateJavascript(COMPATIBILITY, null)
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 deliverIncoming()
@@ -755,6 +764,103 @@ class MainActivity : AppCompatActivity() {
 
         private val APP_BACKGROUND = Color.parseColor("#0A011E")
         private val LIGHT_BACKGROUND = Color.parseColor("#ECEEF8")
+
+        /**
+         * Les compléments de DOM absents des moteurs anciens. Chaque méthode
+         * n'est définie que si elle manque : sur un appareil à jour, ce script
+         * ne change rien.
+         */
+        private val COMPATIBILITY = """
+            (function () {
+              if (typeof Element === 'undefined') return;
+              var proto = Element.prototype;
+              function nodes(list) {
+                var out = [];
+                for (var i = 0; i < list.length; i += 1) {
+                  var item = list[i];
+                  out.push(item && item.nodeType ? item : document.createTextNode(String(item)));
+                }
+                return out;
+              }
+              if (!proto.replaceChildren) {
+                proto.replaceChildren = function () {
+                  while (this.firstChild) this.removeChild(this.firstChild);
+                  var add = nodes(arguments);
+                  for (var i = 0; i < add.length; i += 1) this.appendChild(add[i]);
+                };
+              }
+              if (!proto.append) {
+                proto.append = function () {
+                  var add = nodes(arguments);
+                  for (var i = 0; i < add.length; i += 1) this.appendChild(add[i]);
+                };
+              }
+              if (!proto.prepend) {
+                proto.prepend = function () {
+                  var add = nodes(arguments);
+                  for (var i = 0; i < add.length; i += 1) {
+                    this.insertBefore(add[i], this.firstChild);
+                  }
+                };
+              }
+              if (!proto.replaceWith) {
+                proto.replaceWith = function () {
+                  if (!this.parentNode) return;
+                  var add = nodes(arguments);
+                  for (var i = 0; i < add.length; i += 1) {
+                    this.parentNode.insertBefore(add[i], this);
+                  }
+                  this.parentNode.removeChild(this);
+                };
+              }
+              if (!proto.remove) {
+                proto.remove = function () {
+                  if (this.parentNode) this.parentNode.removeChild(this);
+                };
+              }
+              if (typeof Element.prototype.toggleAttribute !== 'function') {
+                Element.prototype.toggleAttribute = function (name, force) {
+                  var on = arguments.length > 1 ? !!force : !this.hasAttribute(name);
+                  if (on) this.setAttribute(name, ''); else this.removeAttribute(name);
+                  return on;
+                };
+              }
+              if (typeof Object.fromEntries !== 'function') {
+                Object.fromEntries = function (entries) {
+                  var out = {};
+                  entries.forEach(function (pair) { out[pair[0]] = pair[1]; });
+                  return out;
+                };
+              }
+              if (typeof String.prototype.replaceAll !== 'function') {
+                String.prototype.replaceAll = function (search, replacement) {
+                  return this.split(search).join(replacement);
+                };
+              }
+              if (typeof Array.prototype.flat !== 'function') {
+                Array.prototype.flat = function (depth) {
+                  var level = depth === undefined ? 1 : depth;
+                  return level < 1 ? Array.prototype.slice.call(this)
+                    : this.reduce(function (acc, item) {
+                        return acc.concat(Array.isArray(item) ? item.flat(level - 1) : item);
+                      }, []);
+                };
+              }
+              if (typeof Array.prototype.at !== 'function') {
+                Array.prototype.at = function (index) {
+                  return this[index < 0 ? this.length + index : index];
+                };
+              }
+              if (typeof Promise.prototype.finally !== 'function') {
+                Promise.prototype.finally = function (done) {
+                  return this.then(
+                    function (value) { done(); return value; },
+                    function (error) { done(); throw error; }
+                  );
+                };
+              }
+            })();
+        """.trimIndent()
 
         /** `window.print()` n'existe pas dans une vue intégrée : il pointe ici. */
         private const val PRINT_BRIDGE =
