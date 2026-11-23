@@ -355,7 +355,9 @@ jobs:
           echo "Clé retirée de la machine de construction."
 
       - name: Rassembler les paquets
+        shell: bash
         run: |
+          exec > >(tee -a /tmp/verify.log) 2>&1
           set -euo pipefail
           mkdir -p release
           cp android/app/build/outputs/apk/release/*.apk release/
