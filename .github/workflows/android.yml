@@ -357,28 +357,43 @@ jobs:
       - name: Rassembler les paquets
         shell: bash
         run: |
-          exec > >(tee -a /tmp/verify.log) 2>&1
-          set -euo pipefail
-          mkdir -p release
+          exec > >(tee -a /tmp/assembly.log) 2>&1
+          set -xeuo pipefail
+          rm -rf release && mkdir -p release
           cp android/app/build/outputs/apk/release/*.apk release/
           cd release
-          sha256sum *.apk > SHA256SUMS.txt
-          {
-            echo "# NemesisWorkspace ${VERSION_NAME} (${VERSION_CODE})"
-            echo
-            echo "| Paquet | Architecture | Taille | SHA-256 |"
-            echo "| --- | --- | --- | --- |"
-            for apk in *.apk; do
-              abi=$(unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u | tr '\n' ' ')
-              size=$(stat -c '%s' "$apk")
-              sum=$(sha256sum "$apk" | cut -d' ' -f1)
-              echo "| $apk | ${abi:-universal} | $(numfmt --to=iec "$size") | \`$sum\` |"
-            done
-            echo
-            echo "Chaque paquet est signé et aligné ; la somme SHA-256 permet de"
-            echo "vérifier le fichier téléchargé."
-          } > NOTES.md
-          cat NOTES.md
+          sha256sum ./*.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          python3 - <<'PYEOF'
+          import hashlib, os, pathlib
+          rows = []
+          for path in sorted(pathlib.Path('.').glob('*.apk')):
+              size = path.stat().st_size
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              rows.append(f"| {path.name} | toutes (aucun code natif) | {size / 1048576:.1f} Mo | `{digest}` |")
+          text = "\n".join([
+              "# NemesisWorkspace — Android",
+              "",
+              "Un seul paquet : l'interface est compilée en JavaScript, sans code natif,",
+              "si bien qu'il s'installe aussi bien sur un Chromebook Intel (x86), sur un",
+              "téléphone arm64-v8a que sur un appareil armeabi-v7a. Il est signé, aligné,",
+              "et l'interface des trois éditeurs est embarquée dans le fichier.",
+              "",
+              "| Paquet | Architectures | Taille | SHA-256 |",
+              "| --- | --- | --- | --- |",
+              *rows,
+              "",
+              "`SHA256SUMS.txt` permet de vérifier le fichier téléchargé :",
+              "",
+              "```",
+              "sha256sum -c SHA256SUMS.txt",
+              "```",
+              "",
+          ])
+          pathlib.Path('NOTES.md').write_text(text, encoding='utf-8')
+          print(text)
+          PYEOF
+          ls -l
 
       - name: Conserver les rapports d'échec
         if: failure()
@@ -387,6 +402,9 @@ jobs:
           name: echec-rapports
           path: |
             /tmp/android-build.log
+            /tmp/verify.log
+            /tmp/assembly.log
+            /tmp/emulator.log
             android/app/build/reports/**
           if-no-files-found: ignore
           retention-days: 5
@@ -402,7 +420,8 @@ jobs:
             echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
             echo
             [ -f /tmp/verify.log ] && { echo "**vérifications**"; echo '```'; tail -n 15 /tmp/verify.log; echo '```'; }
-            [ -f /tmp/emulator.log ] && { echo "**émulateur**"; echo '```'; tail -n 30 /tmp/emulator.log; echo '```'; }
+            [ -f /tmp/emulator.log ] && { echo "**émulateur**"; echo '```'; tail -n 12 /tmp/emulator.log; echo '```'; }
+            [ -f /tmp/assembly.log ] && { echo "**assemblage**"; echo '```'; tail -n 25 /tmp/assembly.log; echo '```'; }
             for f in /tmp/android-build.log; do
               [ -f "$f" ] || continue
               echo "\`\`\`"
