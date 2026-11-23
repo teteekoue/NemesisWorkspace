@@ -2,6 +2,7 @@ import { MAX_FONT_SIZE } from '../engine/font-size.js';
 import { selectionLanguage, languageProperty } from '../engine/font-families.js';
 import { stepFontSize, FALLBACK_SIZES } from '../lib/fontsize.js';
 import { statusWordCount } from './word-count.js';
+import { hasWorkspaceHome } from '../lib/puter.js';
 import { previewNotice, pictureFontNotice, scriptFontNotice, omittedPictureNotice, plainMarkdownNotice } from './preview-notice.js';
 import { importNotice } from '../ui/importnotice.js';
 import { createCanvasRulers } from '../ui/canvas-rulers.js';
