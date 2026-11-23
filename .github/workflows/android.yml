@@ -455,6 +455,34 @@ jobs:
             -f body="$(cat "$REPORT")" >/dev/null || echo "rapport non publié"
           cat "$REPORT"
 
+      - name: Publier le compte rendu des vérifications
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "Build Android réussi sur \`${GITHUB_SHA::7}\`."
+            echo
+            echo "**Paquet** : $(basename "$(find release -name '*.apk' | head -1)")"
+            echo
+            echo "**Signature et alignement** :"
+            echo '```'
+            sed -n '1,3p' verification/*.signature.txt
+            tail -n 1 verification/*.align.txt
+            echo '```'
+            echo "**Manifeste** :"
+            echo '```'
+            head -3 verification/badging.txt
+            echo '```'
+            echo "**Sur un appareil x86 (Chromebook)** :"
+            echo '```'
+            tail -n 12 /tmp/emulator.log
+            echo '```'
+          } > /tmp/success.txt
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            -f body="$(cat /tmp/success.txt)" >/dev/null || echo "compte rendu non publié"
+          cat /tmp/success.txt
+
       - name: Conserver les paquets et les vérifications
         uses: actions/upload-artifact@v4
         with:
