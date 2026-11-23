@@ -142,6 +142,145 @@ function polyfillBuiltins() {
   }
 }
 
+/** Méthodes récentes dont le paquet a besoin, une fois recensées. */
+function polyfillNewer() {
+  if (notThere(Object.hasOwn)) {
+    Object.hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  }
+  if (notThere(Array.prototype.findLast)) {
+    Array.prototype.findLast = function findLast(fn, thisArg) {
+      for (let i = this.length - 1; i >= 0; i -= 1) {
+        if (fn.call(thisArg, this[i], i, this)) return this[i];
+      }
+      return undefined;
+    };
+  }
+  if (notThere(Array.prototype.findLastIndex)) {
+    Array.prototype.findLastIndex = function findLastIndex(fn, thisArg) {
+      for (let i = this.length - 1; i >= 0; i -= 1) {
+        if (fn.call(thisArg, this[i], i, this)) return i;
+      }
+      return -1;
+    };
+  }
+  if (notThere(String.prototype.matchAll)) {
+    String.prototype.matchAll = function matchAllAll(regexp) {
+      const source = regexp.global ? regexp.source : `${regexp.source}`;
+      const flags = regexp.flags.includes('g') ? regexp.flags : `${regexp.flags}g`;
+      const expression = new RegExp(source, flags);
+      const out = [];
+      let match = expression.exec(this);
+      while (match) {
+        out.push(match);
+        if (match[0] === '') expression.lastIndex += 1;
+        match = expression.exec(this);
+      }
+      out[Symbol.iterator] = function iterator() {
+        return Array.prototype[Symbol.iterator].call(out);
+      };
+      return out;
+    };
+  }
+  if (notThere(String.prototype.at)) {
+    String.prototype.at = function at(index) {
+      return this[index < 0 ? this.length + index : index];
+    };
+  }
+  if (notThere(String.prototype.padStart)) {
+    String.prototype.padStart = function padStart(length, filler) {
+      const pad = filler === undefined ? ' ' : String(filler);
+      const text = String(this);
+      if (text.length >= length || !pad) return text;
+      const needed = length - text.length;
+      return pad.repeat(Math.ceil(needed / pad.length)).slice(0, needed) + text;
+    };
+  }
+  const ElementProto = typeof root.Element === 'function' ? root.Element.prototype : null;
+  if (ElementProto && notThere(ElementProto.checkVisibility)) {
+    ElementProto.checkVisibility = function checkVisibility() {
+      return this.getClientRects().length > 0;
+    };
+  }
+  if (notThere(root.structuredClone)) {
+    // Les données de l'interface sont simples (objets, tableaux, dates) :
+    // une copie en profondeur suffit pour les isoler.
+    root.structuredClone = function structuredClone(value) {
+      if (value === null || typeof value !== 'object') return value;
+      if (value instanceof Date) return new Date(value.getTime());
+      if (value instanceof Map) return new Map(Array.from(value, ([k, v]) => [k, root.structuredClone(v)]));
+      if (value instanceof Set) return new Set(Array.from(value, (item) => root.structuredClone(item)));
+      if (Array.isArray(value)) return value.map((item) => root.structuredClone(item));
+      if (ArrayBuffer.isView(value)) return value.slice();
+      if (value instanceof ArrayBuffer) return value.slice(0);
+      const out = {};
+      for (const key of Object.keys(value)) out[key] = root.structuredClone(value[key]);
+      return out;
+    };
+  }
+  if (notThere(root.crypto && root.crypto.randomUUID)) {
+    const random = () => {
+      const bytes = new Uint8Array(16);
+      if (root.crypto && root.crypto.getRandomValues) root.crypto.getRandomValues(bytes);
+      else for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.prototype.map.call(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    };
+    if (!root.crypto) root.crypto = {};
+    try {
+      Object.defineProperty(root.crypto, 'randomUUID', { value: random, configurable: true, writable: true });
+    } catch (error) {
+      root.crypto.randomUUID = random;
+    }
+  }
+  if (typeof AbortSignal === 'function' && notThere(AbortSignal.timeout)) {
+    AbortSignal.timeout = (milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new Error('timeout')), milliseconds);
+      return controller.signal;
+    };
+  }
+  if (typeof AbortSignal === 'function' && notThere(AbortSignal.any)) {
+    AbortSignal.any = (signals) => {
+      const controller = new AbortController();
+      for (const signal of signals) {
+        if (signal.aborted) {
+          controller.abort(signal.reason);
+          break;
+        }
+        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+      }
+      return controller.signal;
+    };
+  }
+  // Tableaux : `toSorted` et compagnie gardent l'original intact.
+  for (const [name, apply] of [
+    ['toSorted', (list, fn) => Array.prototype.slice.call(list).sort(fn)],
+    ['toReversed', (list) => Array.prototype.slice.call(list).reverse()],
+    ['toSpliced', (list, start, count, ...items) => {
+      const copy = Array.prototype.slice.call(list);
+      copy.splice(start, count, ...items);
+      return copy;
+    }],
+    ['with', (list, index, value) => {
+      const copy = Array.prototype.slice.call(list);
+      copy[index < 0 ? copy.length + index : index] = value;
+      return copy;
+    }],
+  ]) {
+    if (notThere(Array.prototype[name])) {
+      Object.defineProperty(Array.prototype, name, {
+        value: function toCopy(...args) {
+          return apply(this, ...args);
+        },
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
 /** Découpage en mots et en caractères : la version locale suffit. */
 function polyfillSegmentation() {
   if (typeof Intl === 'undefined') return;
@@ -263,8 +402,9 @@ function polyfillObservers() {
 
 function applyCompat(target) {
   if (!target || !target.document) return;
-  polyfillElements(target.Element.prototype);
+  if (typeof target.Element === 'function') polyfillElements(target.Element.prototype);
   polyfillBuiltins();
+  polyfillNewer();
   polyfillSegmentation();
   polyfillObservers();
 }
