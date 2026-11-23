@@ -4,5 +4,10 @@ import nemesisShared from "../../dev/nemesis-shared.mjs";
 export default defineConfig({
   plugins: [nemesisShared(), puterLocalhost("presentation")],
   base: "./",
+  build: {
+    // Voir documents/vite.config.js : cible modeste, moteurs anciens.
+    target: "es2019",
+    cssTarget: "safari15",
+  },
   test: { include: ["tests/**/*.test.js", "lib/**/*.test.ts"] },
 });

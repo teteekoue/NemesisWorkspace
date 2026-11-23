@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [nemesisShared(), puterLocalhost('spreadsheet')],
   base: './',
   build: {
-    target: 'es2022',
+    // Le paquet embarqué dans l'application tourne aussi sur des moteurs
+    // anciens (Chromium de Chromebook, WebView d'Android 8) : la cible reste
+    // donc modeste pour qu'aucune syntaxe récente ne casse la page.
+    target: 'es2019',
     cssTarget: 'safari15',
     // SheetJS is ~1 MB of source and only needed when a file is read or
     // written, so io.js imports it dynamically; the warning threshold is
