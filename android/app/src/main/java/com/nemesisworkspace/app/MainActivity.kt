@@ -199,6 +199,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            /**
+             * L'interface change d'écran sans recharger la page (document,
+             * liste, accueil) : à chaque nouvelle adresse, ce qu'elle affiche
+             * est redemandé, et le retour sait quoi quitter.
+             */
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                view.evaluateJavascript(SCREEN_REPORT) { report ->
+                    reportScreen(report)
+                }
+            }
+
             override fun onReceivedError(
                 view: WebView,
                 request: WebResourceRequest,
@@ -234,17 +246,7 @@ class MainActivity : AppCompatActivity() {
                 // Ce que l'écran affiche réellement, dans le journal : utile
                 // sur un appareil qu'on ne peut pas brancher, et vérifiable par
                 // la construction.
-                view.evaluateJavascript(
-                    "(function(){try{" +
-                        "const cards=document.querySelectorAll('.tile,.card,.app-tile,[data-kind]').length;" +
-                        "return JSON.stringify({title:document.title,lang:document.documentElement.lang," +
-                        "width:Math.round(window.innerWidth),height:Math.round(window.innerHeight)," +
-                        "cards:cards,body:document.body.innerText.trim().length," +
-                        "root:(document.getElementById('root')||{childElementCount:0}).childElementCount});" +
-                        "}catch(e){return JSON.stringify({error:String(e)});}})()",
-                ) { report ->
-                    Log.i(TAG, "interface prête: $report")
-                }
+                view.evaluateJavascript(SCREEN_REPORT) { report -> reportScreen(report) }
             }
         }
 
@@ -290,6 +292,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var pendingChooser: android.webkit.ValueCallback<Array<Uri>>? = null
+
+    /**
+     * L'écran affiché est-il un document en cours d'édition ?
+     *
+     * C'est ce que le bouton retour doit quitter : un document cède la place à
+     * sa liste, puis la liste à l'accueil de l'espace. Sur un accueil, le
+     * retour quitte l'application — jamais l'historique de chargement, qui
+     * ramènerait une page déjà quittée.
+     */
+    private var editingDocument = false
+
+    /** Note l'écran rapporté par l'interface et le laisse dans le journal. */
+    private fun reportScreen(report: String?) {
+        if (report.isNullOrBlank() || report == "null") return
+        Log.i(TAG, "interface prête: $report")
+        editingDocument = report.contains("\"editing\":true")
+    }
 
     /** Le document reçu à l'ouverture, en attendant que l'interface soit prête. */
     private var pendingIncoming: JSONObject? = null
@@ -433,8 +452,12 @@ class MainActivity : AppCompatActivity() {
         web.evaluateJavascript(BACK_SCRIPT) { result ->
             val handled = result.trim('"') == "true"
             when {
+                // Un dialogue ou un menu ouvert se ferme d'abord.
                 handled -> Unit
-                web.canGoBack() -> web.goBack()
+                // Dans un document, le retour remonte à sa liste (l'interface
+                // sait le faire, comme son propre bouton) ; sur une liste ou
+                // un accueil, il quitte l'application.
+                editingDocument -> web.evaluateJavascript(LEAVE_DOCUMENT, null)
                 else -> finish()
             }
         }
@@ -873,6 +896,42 @@ class MainActivity : AppCompatActivity() {
                 "try{window.NemesisHost.print();}catch(e){console.warn('impression',e);}" +
                 "setTimeout(()=>window.dispatchEvent(new Event('afterprint')),600);" +
                 "};})();"
+
+        /** Ce que l'écran affiche : titre, langue, taille, contenu, nature. */
+        private val SCREEN_REPORT = """
+            (function(){
+              try{
+                var cards=document.querySelectorAll('.tile,.card,.app-tile,[data-kind]').length;
+                var editing=!!document.querySelector('.ed-header, .editor-header, [data-view="editor"]');
+                return JSON.stringify({title:document.title,lang:document.documentElement.lang,
+                  width:Math.round(window.innerWidth),height:Math.round(window.innerHeight),
+                  cards:cards,body:document.body.innerText.trim().length,
+                  root:(document.getElementById('root')||{childElementCount:0}).childElementCount,
+                  editing:editing});
+              }catch(e){return JSON.stringify({error:String(e)});}
+            })()
+        """.trimIndent()
+
+        /**
+         * Quitter le document en cours, comme le bouton de l'interface : le
+         * nom accessible de ce bouton est le même dans les trois éditeurs.
+         */
+        private val LEAVE_DOCUMENT = """
+            (function () {
+              try {
+                var back = document.querySelector(
+                  '[aria-label="Back to documents"], [aria-label="Back to all spreadsheets"], [aria-label="Back to presentations"], [aria-label="All Documents"]',
+                );
+                if (back) { back.click(); return true; }
+                // Le classeur et la présentation nomment leur accueil.
+                var home = document.querySelector('.qat-btn[aria-label*="Documents"], [data-action="home"]');
+                if (home) { home.click(); return true; }
+                return false;
+              } catch (e) {
+                return false;
+              }
+            })()
+        """.trimIndent()
 
         /**
          * Ce que le retour doit fermer avant de remonter dans l'historique.
