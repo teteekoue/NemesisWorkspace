@@ -53,7 +53,7 @@ export function rememberedSort() {
   try { const v = localStorage.getItem(SORT_KEY); return SORTS.some((s) => s.id === v) ? v : 'modified'; } catch { return 'modified'; }
 }
 
-export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
+export function homeView({ openPath, newDoc, newFromTemplate, importFile, goWorkspace = null }) {
   let files = [];
   let query = '';
   let sort = rememberedSort();
@@ -132,6 +132,13 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
   const root = el('div.home.view', {},
     fileInput,
     el('header.home-head', {},
+      // L'application installée contient les trois éditeurs : l'accueil des
+      // documents y ouvre sur celui de l'espace. Dans un navigateur, l'espace
+      // est un site voisin, et ce retour n'existe pas.
+      goWorkspace && el('button.icon-btn.home-back', {
+        type: 'button', title: 'All apps', 'aria-label': 'All apps',
+        onclick: () => goWorkspace(),
+      }, el('span', { html: icon('back', 20) })),
       el('h1.brand', {}, el('img.brand-mark', { src: `${import.meta.env.BASE_URL}icons/icon-64.png`, width: 30, height: 30, alt: '' }), el('span', {}, 'Documents')),
       el('div.grow'),
       ...account.nodes),

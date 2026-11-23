@@ -17,6 +17,7 @@ import { isNative, platform, setNativeTheme } from '../../shared/bridge.js';
 import { mountHome } from './shell/home.js';
 import { el } from './ui/dom.js';
 import { prefer, remember } from '../../shared/prefs.js';
+import { importIncoming } from './shell/workspace.js';
 
 /* ---------- thème ---------- */
 
@@ -65,6 +66,17 @@ async function start() {
       ),
     );
   }
+
+  // L'accueil lit le document reçu à l'ouverture de l'application (un fichier
+  // ouvert depuis un courriel ou un gestionnaire de fichiers).
+  let incomingHandled = false;
+  const receiveIncoming = (event) => {
+    if (incomingHandled || !event?.detail?.bytes) return;
+    incomingHandled = true;
+    void importIncoming(event.detail).catch((error) => console.warn('[Nemesis] import', error));
+  };
+  window.addEventListener('nemesis:incoming', receiveIncoming);
+  if (window.__nemesisIncoming) receiveIncoming({ detail: window.__nemesisIncoming });
 
   window.addEventListener('nemesis:theme', applyTheme);
   document.addEventListener('visibilitychange', () => {

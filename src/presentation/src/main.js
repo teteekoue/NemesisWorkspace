@@ -84,6 +84,7 @@ import {
   History,
   cleanName,
 } from "./model.js";
+import { isNative } from '../../shared/bridge.js';
 import * as cloud from "./cloud.js";
 import {
   appsButton,
@@ -924,6 +925,27 @@ function focusView() {
   if (!document.activeElement || document.activeElement === document.body)
     document.querySelector("#main")?.focus({ preventScroll: true });
 }
+/**
+ * Quitter l'éditeur : ce qui doit être enregistré l'est, une question posée
+ * s'il le faut, puis la bibliothèque s'affiche. `makeHome` sert au bouton
+ * retour, qui est construit avant cette déclaration.
+ */
+const makeHome = () => async () => {
+  if (!(await leaveEditor())) return;
+  await home();
+};
+
+/**
+ * L'accueil de l'espace de travail, qui réunit les trois éditeurs. Il n'existe
+ * que dans l'application installée : dans un navigateur, l'espace est un site
+ * voisin, et l'on ne « revient » pas d'une présentation vers lui.
+ */
+const WORKSPACE_HOME = "../index.html";
+const hasWorkspaceHome = () => isNative();
+const goWorkspace = () => {
+  if (hasWorkspaceHome()) location.assign(WORKSPACE_HOME);
+};
+
 async function home(cancelOpen = true, { focus = true } = {}) {
   activeDrag?.cancel();
   if (cancelOpen) {
@@ -3606,13 +3628,9 @@ function editorTopbar() {
     el(
       "div",
       { class: "topbar-row" },
-      iconButton(
-        "Back to presentations",
-        "ArrowLeft",
-        run(async () => {
-          if (await leaveEditor()) await home();
-        }),
-      ),
+      iconButton("Back to presentations", "ArrowLeft", run(makeHome())),
+      // Dans l'application installée, un cran plus haut : l'espace de travail.
+      hasWorkspaceHome() && iconButton("All apps", "House", run(goWorkspace)),
       appIcon("brand-mark editor-brand desktop-only"),
       el(
         "div",

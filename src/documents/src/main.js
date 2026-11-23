@@ -29,6 +29,17 @@ let importRequest = 0;
 /** The document list. Opening the app lands in a new document instead. */
 export const HOME = '#/home';
 
+/**
+ * L'accueil de l'espace de travail, qui liste les trois éditeurs.
+ *
+ * Dans l'application installée, il existe un écran au-dessus de celui-ci : le
+ * retour y mène après l'accueil des documents, et le bouton « Tous les
+ * documents » de l'en-tête s'y arrête. Dans un navigateur, l'espace est un
+ * site voisin et non une application qui contient celle-ci : ces deux chemins
+ * n'y sont pas proposés.
+ */
+export { WORKSPACE_HOME, hasWorkspaceHome } from './lib/puter.js';
+
 export function parseHash(hash = location.hash) {
   const h = hash.replace(/^#\/?/, '');
   try {
@@ -212,6 +223,7 @@ async function unlessLeft(hash, work) {
 
 const nav = {
   goHome: () => go(HOME),
+  goWorkspace: () => P.goWorkspaceHome(),
   openPath: (path) => go(`#/edit/${encodeURIComponent(path)}`),
   newDoc: () => go('#/new', { newDocument: true }),
   newFromTemplate: (id) => go(`#/new/${encodeURIComponent(id)}`, { newDocument: true }),
@@ -332,7 +344,9 @@ async function route({ newDocument = false } = {}) {
     if (!await unmount()) return;
     if (location.hash !== requestedHash) return;
     if (r === 'home') {
-      mount('home', homeView(nav));
+      // Dans l'application installée, l'accueil des documents s'ouvre sur
+      // celui de l'espace de travail.
+      mount('home', homeView({ ...nav, goWorkspace: P.hasWorkspaceHome() ? nav.goWorkspace : null }));
       document.title = 'Documents';
       P.setWindowTitle('Documents');
       return;

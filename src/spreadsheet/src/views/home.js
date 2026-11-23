@@ -30,7 +30,7 @@ import { t, compareText } from '../i18n/index.js';
 let views = 0; // headings name their sections by id, and each home screen has ids of its own
 const dirOf = (path) => path.slice(0, path.lastIndexOf('/') + 1);
 
-export function homeView({ openPath, openFile, newDoc, sampleDoc, templateDoc, importFile, recoverDraft }) {
+export function homeView({ openPath, openFile, newDoc, sampleDoc, templateDoc, importFile, recoverDraft, goWorkspace = null }) {
   const n = ++views;
   const ids = { start: `home-start-${n}`, files: `home-files-${n}` };
   const fromTemplate = () => openTemplatePicker({ onPick: templateDoc });
@@ -348,6 +348,13 @@ export function homeView({ openPath, openFile, newDoc, sampleDoc, templateDoc, i
   const root = el('div.home.view', {},
     fileInput,
     el('header.home-head', {},
+      // L'application installée réunit les trois éditeurs : leur liste
+      // s'ouvre sur l'accueil de l'espace. Dans un navigateur, l'espace est un
+      // site voisin, et ce retour n'existe pas.
+      goWorkspace && el('button.icon-btn.home-back', {
+        type: 'button', title: t('editor.topbar.allApps'), 'aria-label': t('editor.topbar.allApps'),
+        onclick: () => goWorkspace(),
+      }, el('span', { html: icon('back', 20) })),
       el('div.brand', {}, el('span.brand-mark', { html: icon('brand', 20, 2) }), el('h1.brand-name', {}, t('common.spreadsheet'))),
       el('div.grow'),
       ...account.nodes),

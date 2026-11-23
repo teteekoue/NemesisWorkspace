@@ -343,6 +343,21 @@ jobs:
             cat verification/logcat.txt
             fail "l'application a planté"
           fi
+          # Le retour doit agir : sur l'accueil de l'espace, il quitte
+          # l'application (il ne reste plus bloqué dans un dialogue imaginaire).
+          $ADB shell input keyevent KEYCODE_BACK
+          sleep 4
+          if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
+            fail "le bouton retour n'a pas quitté l'application depuis l'accueil"
+          fi
+          echo "::notice::Le bouton retour quitte l'application depuis l'accueil."
+
+          # Relancer montre de nouveau l'accueil : rien n'est resté cassé.
+          $ADB shell am start -W -n com.nemesisworkspace.app/.MainActivity > /tmp/relance.txt || true
+          grep -q "Status: ok" /tmp/relance.txt || fail "l'application ne redémarre pas"
+          sleep 12
+          $ADB logcat -d | grep "interface prête" | tail -1
+
           $ADB emu kill || true
           kill "$EMULATOR" 2>/dev/null || true
           echo "::notice::Installée, lancée, et son interface s'est affichée sur un appareil x86."

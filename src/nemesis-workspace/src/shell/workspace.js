@@ -123,3 +123,51 @@ export function formatSize(bytes) {
 
 /** Le libellé d'un dossier pour l'interface. */
 export const folderLabel = (folder) => describe(folder);
+
+/**
+ * Enregistrer un fichier reçu à l'ouverture de l'application (ouvert depuis un
+ * courriel ou un gestionnaire de fichiers) et l'ouvrir dans son éditeur.
+ *
+ * Le fichier entre dans le dossier de son éditeur, comme un fichier importé :
+ * il reste ensuite dans la liste, et rien n'est perdu si l'ouverture échoue.
+ */
+export async function importIncoming({ name, bytes, kind = '' } = {}) {
+  const fs = window.puter?.fs;
+  if (!fs || !name || !bytes) return null;
+  const clean = String(name).split('/').pop() || 'document';
+  const target = kindOf(clean) || kind || 'documents';
+  const folder = FOLDERS[target] || FOLDERS.documents;
+  const path = `${folder}/${clean}`;
+  const data = bytes instanceof Uint8Array ? bytes : base64Bytes(bytes);
+  try {
+    await fs.write(path, new Blob([data], { type: mimeOf(clean) }), {
+      overwrite: false,
+      dedupeName: true,
+      createMissingParents: true,
+    });
+  } catch (error) {
+    console.warn('[Nemesis] le fichier reçu n’a pas pu être rangé', error);
+    return null;
+  }
+  const url = editorUrlFor(target, path);
+  if (url) location.assign(url);
+  return path;
+}
+
+/** Les octets d'un fichier reçu, que le pont transmet en base64. */
+function base64Bytes(text) {
+  const binary = atob(String(text));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Le type d'un fichier d'après son extension, pour le stockage. */
+function mimeOf(name) {
+  const ext = extensionOf(name);
+  if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (ext === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (ext === 'pptx') return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  if (ext === 'csv') return 'text/csv';
+  return 'application/octet-stream';
+}

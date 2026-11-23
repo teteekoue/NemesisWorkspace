@@ -21,7 +21,7 @@ let rememberedTab = 'home';
  * It arranges the editor's own controls (their state and handlers stay in the editor view) and adds
  * ribbon commands that call the editor's actions.
  */
-export function createCanvasChrome({ title, status, account, local, controls: c, actions: a, commands: w = {}, focusEditor, rulers }) {
+export function createCanvasChrome({ title, status, account, local, controls: c, actions: a, commands: w = {}, focusEditor, rulers, workspaceHome = false }) {
   const field = (label, control) => el('label.canvas-tool-field', {}, el('span', {}, label), control);
   const section = (label, ...items) => el('section.canvas-advanced-section', { 'aria-label': label },
     el('h2', {}, label), el('div.canvas-advanced-controls', {}, ...items));
@@ -543,7 +543,7 @@ export function createCanvasChrome({ title, status, account, local, controls: c,
   const menus = classicMenus(menuContext);
   /** Every command in the window, for search, KeyTips and Customize Keyboard. */
   const entries = () => [...ribbonEntries({ ribbon, tabs: allTabs, beforeRun: () => modes?.beforeRun() }), ...menuEntries(menus)];
-  titleBar = createTitleBar({ w, c, a, local, title, status, account, menus, focusEditor, entries,
+  titleBar = createTitleBar({ w, c, a, local, title, status, account, menus, focusEditor, entries, workspaceHome,
     openShortcuts: menuContext.openShortcuts, keymapShortcut: id => w.shortcutFor?.(id) ?? null });
   const header = el('header.canvas-header.ed-header', {}, titleBar.el, ribbon.tablist);
   // The space between the title bar's controls and beside the tabs is not somewhere to type.

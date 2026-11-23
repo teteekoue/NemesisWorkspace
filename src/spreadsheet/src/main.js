@@ -1,3 +1,4 @@
+import { isNative } from '../../shared/bridge.js';
 import './styles/index.css';
 import { el } from './ui/dom.js';
 import { icon } from './ui/icons.js';
@@ -31,6 +32,16 @@ let launchedPath = null;
 
 /** The spreadsheet list. Opening the app lands in a new sheet instead. */
 export const HOME = '#/home';
+
+/**
+ * L'accueil de l'espace de travail, qui réunit les trois éditeurs.
+ *
+ * Il n'existe que dans l'application installée : dans un navigateur, l'espace
+ * est un site voisin et l'on ne « revient » pas d'un document vers lui. Le
+ * pont le dit, et le bouton comme le retour s'y arrêtent.
+ */
+export const WORKSPACE_HOME = '../index.html';
+const hasWorkspaceHome = () => isNative();
 
 function parseHash() {
   return parseAppHash(location.hash);
@@ -117,6 +128,7 @@ function showLoading(label = t('common.opening')) {
 
 const nav = {
   goHome: () => go(HOME),
+  goWorkspace: () => { if (hasWorkspaceHome()) location.assign(WORKSPACE_HOME); },
   openPath: (path, { reload = false } = {}) => {
     const hash = `#/edit/${encodeURIComponent(path)}`;
     if (reload) { history.replaceState(null, '', hash); route({ reload: true }); }
@@ -141,7 +153,8 @@ const nav = {
 let liveFile = null;
 
 function openEditor(doc, initialRange = null) {
-  const view = editorView({ doc, ...nav, initialRange, leaveDialog: () => leaveWithoutSessionDialog({ kept: doc.draftKept !== false }) });
+  const view = editorView({ doc, ...nav, goWorkspace: hasWorkspaceHome() ? nav.goWorkspace : null, initialRange,
+    leaveDialog: () => leaveWithoutSessionDialog({ kept: doc.draftKept !== false }) });
   mount('editor', view);
   // The record keeps the file's own name; the list strips the extension itself, so "Q3.5" keeps its ".5".
   if (doc.path) rememberRecent(doc.file);
@@ -198,7 +211,7 @@ async function route({ reload = false, file = null, draftKey = null } = {}) {
       return;
     }
     if (r === 'home') {
-      mount('home', homeView(nav));
+      mount('home', homeView({ ...nav, goWorkspace: hasWorkspaceHome() ? nav.goWorkspace : null }));
       document.title = t('common.spreadsheet');
       P.setWindowTitle(t('common.spreadsheet'));
       return;

@@ -127,7 +127,7 @@ async function isZipPackage(file) {
   catch { return false; }
 }
 
-export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromTemplate, local = false }) {
+export function editorView({ doc, goHome, goWorkspace = null, newDoc, importFile, openPath, newFromTemplate, local = false }) {
   const printAbort = new AbortController();
   let printing = false;
   window.addEventListener('keydown', e => {
@@ -1214,6 +1214,7 @@ export function editorView({ doc, goHome, newDoc, importFile, openPath, newFromT
   const collabExtendMenu = editorCommands.extendMenu;
   editorCommands.extendMenu = (id, kit) => [...(collabExtendMenu?.(id, kit) || []), ...collab.extendMenu(id, kit), ...assistant.extendMenu(id, kit)];
   const chrome = createCanvasChrome({ title, status, account: account?.nodes, local, focusEditor: () => engine?.focus(), commands: editorCommands,
+    workspaceHome: hasWorkspaceHome(),
     controls: { undo, redo, find, paragraphStyle, editStyle, newStyle, clearParagraphFormatting, outline, outlineLevel,
       characterStyle, editCharacterStyle, newCharacterStyle, clearTextFormatting, fontFamily, fontSize, fontSizeMenu, bold, italic, underline,
       underlineOptions, caps, smallCaps, strike, doubleStrike, superscript, subscript, baselineShift, characterSpacing,

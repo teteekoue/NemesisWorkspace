@@ -612,3 +612,11 @@ puter-user-menu::part(menu), puter-user-menu::part(apps-panel) {
 .recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .recent-when { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .recent-forget { width: 26px; height: 26px; }
+
+/* Le retour vers l'espace de travail, à gauche du nom (application installée
+   seulement : dans un navigateur, l'espace est un site voisin). */
+.home-head .home-back {
+  flex: none;
+  margin-right: 2px;
+}
+.home-head .home-back svg { width: 20px; height: 20px; }

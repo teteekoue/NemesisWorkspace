@@ -105,6 +105,17 @@ input:disabled + .ed-switch { opacity: .5; }
 
 /* Narrower windows give the menus one button, then shorten the pills. */
 /* Below 1520px the document's name wins over a wide search box and the Share label. */
+/* Le retour vers l'espace de travail, à gauche du nom de l'application
+   (application installée seulement). */
+.home-head .home-back {
+  flex: none;
+  margin-right: 2px;
+}
+.home-head .home-back svg { width: 20px; height: 20px; }
+@media (max-width: 700px) {
+  .home-head .home-back { margin-right: 0; }
+}
+
 @media (max-width: 1520px) { .ed-header .ed-search { width: 150px; } .ed-share .ed-pill-label { display: none; } .ed-header .ed-menubar .menu-btn { padding: 0 5px; } }
 /* It wins over the routine save labels too (the cloud icon still shows the state). Each edit runs through unsaved, saving
    and saved: all three are icons alone until there is room for their labels, and then keep room for the longest of them,
