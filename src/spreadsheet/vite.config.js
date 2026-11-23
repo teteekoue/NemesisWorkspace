@@ -9,7 +9,7 @@ export default defineConfig({
     // Le paquet embarqué dans l'application tourne aussi sur des moteurs
     // anciens (Chromium de Chromebook, WebView d'Android 8) : la cible reste
     // donc modeste pour qu'aucune syntaxe récente ne casse la page.
-    target: 'es2019',
+    target: 'es2017',
     cssTarget: 'safari15',
     // SheetJS is ~1 MB of source and only needed when a file is read or
     // written, so io.js imports it dynamically; the warning threshold is

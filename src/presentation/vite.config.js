@@ -6,7 +6,7 @@ export default defineConfig({
   base: "./",
   build: {
     // Voir documents/vite.config.js : cible modeste, moteurs anciens.
-    target: "es2019",
+    target: "es2017",
     cssTarget: "safari15",
   },
   test: { include: ["tests/**/*.test.js", "lib/**/*.test.ts"] },

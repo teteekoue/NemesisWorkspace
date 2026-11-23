@@ -10,6 +10,10 @@
  * Rien n'est remplacé quand le moteur fait déjà le travail.
  */
 
+// La racine se devine sans `globalThis`, absent justement des moteurs anciens.
+const root = typeof window !== 'undefined' ? window
+  : typeof self !== 'undefined' ? self : global;
+
 const notThere = (value) => typeof value !== 'function';
 
 const textNodes = (items) => {
@@ -119,13 +123,13 @@ function polyfillBuiltins() {
         ),
       );
   }
-  if (notThere(globalThis.queueMicrotask)) {
-    globalThis.queueMicrotask = (fn) => Promise.resolve().then(fn);
+  if (notThere(root.queueMicrotask)) {
+    root.queueMicrotask = (fn) => Promise.resolve().then(fn);
   }
-  if (notThere(globalThis.requestIdleCallback)) {
-    globalThis.requestIdleCallback = (fn) =>
+  if (notThere(root.requestIdleCallback)) {
+    root.requestIdleCallback = (fn) =>
       setTimeout(() => fn({ didTimeout: false, timeRemaining: () => 50 }), 1);
-    globalThis.cancelIdleCallback = (id) => clearTimeout(id);
+    root.cancelIdleCallback = (id) => clearTimeout(id);
   }
   if (typeof AbortController === 'function' && AbortController.prototype
     && notThere(AbortController.prototype.throwIfAborted)) {
@@ -201,8 +205,8 @@ function polyfillSegmentation() {
 
 /** Plusieurs éléments d'un fichier peuvent se superposer : `scrollend` aussi. */
 function polyfillObservers() {
-  if (notThere(globalThis.ResizeObserver)) {
-    globalThis.ResizeObserver = class ResizeObserver {
+  if (notThere(root.ResizeObserver)) {
+    root.ResizeObserver = class ResizeObserver {
       constructor(callback) {
         this.callback = callback;
         this.targets = new Set();
@@ -237,8 +241,8 @@ function polyfillObservers() {
       }
     };
   }
-  if (notThere(globalThis.IntersectionObserver)) {
-    globalThis.IntersectionObserver = class IntersectionObserver {
+  if (notThere(root.IntersectionObserver)) {
+    root.IntersectionObserver = class IntersectionObserver {
       constructor(callback) {
         this.callback = callback;
       }
@@ -254,7 +258,7 @@ function polyfillObservers() {
   }
 }
 
-export function applyCompat(target = globalThis) {
+export function applyCompat(target = root) {
   if (!target || !target.document) return;
   polyfillElements(target.Element.prototype);
   polyfillBuiltins();
