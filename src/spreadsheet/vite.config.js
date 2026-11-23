@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import puterLocalhost from '../../dev/puter-localhost.mjs';
 import nemesisShared from '../../dev/nemesis-shared.mjs';
+import compatHead from '../../dev/compat-head.mjs';
 
 export default defineConfig({
-  plugins: [nemesisShared(), puterLocalhost('spreadsheet')],
+  plugins: [compatHead(), nemesisShared(), puterLocalhost('spreadsheet')],
   base: './',
   build: {
     // Le paquet embarqué dans l'application tourne aussi sur des moteurs

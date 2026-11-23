@@ -5,7 +5,6 @@
  * fichiers récents et les sauvegardes locales. Aucun compte n'est demandé.
  */
 
-import '../../shared/compat.js';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';

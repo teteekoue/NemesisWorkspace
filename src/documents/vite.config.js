@@ -2,10 +2,11 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import puterLocalhost from '../../dev/puter-localhost.mjs';
 import nemesisShared from '../../dev/nemesis-shared.mjs';
+import compatHead from '../../dev/compat-head.mjs';
 import collabDevServer from './dev/collab-dev-server.mjs';
 
 export default defineConfig({
-  plugins: [nemesisShared(), puterLocalhost('documents'), collabDevServer()],
+  plugins: [compatHead(), nemesisShared(), puterLocalhost('documents'), collabDevServer()],
   base: './',
   build: {
     // Le paquet embarqué dans l'application tourne aussi sur des moteurs

@@ -1,6 +1,9 @@
 /**
  * NemesisWorkspace — raccord pour les moteurs anciens.
  *
+ * Ce fichier est inséré tel quel, en script classique, en tête de chaque page
+ * (voir `dev/compat-head.mjs`) : il s'exécute donc avant le moindre module.
+ *
  * Les quatre applications sont embarquées dans l'application Android et
  * tournent parfois sur une vue système ancienne (Android 8, Chromebook
  * d'entreprise) : les API récentes qu'elles utilisent sans y penser y
@@ -258,7 +261,7 @@ function polyfillObservers() {
   }
 }
 
-export function applyCompat(target = root) {
+function applyCompat(target) {
   if (!target || !target.document) return;
   polyfillElements(target.Element.prototype);
   polyfillBuiltins();
@@ -266,4 +269,4 @@ export function applyCompat(target = root) {
   polyfillObservers();
 }
 
-applyCompat();
+applyCompat(root);

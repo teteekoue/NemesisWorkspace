@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import nemesisShared from '../../dev/nemesis-shared.mjs';
+import compatHead from '../../dev/compat-head.mjs';
 
 /**
  * NemesisWorkspace — configuration de l'accueil.
@@ -21,7 +22,7 @@ import nemesisShared from '../../dev/nemesis-shared.mjs';
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [nemesisShared()],
+  plugins: [compatHead(), nemesisShared()],
   base: './',
   build: {
     // Le paquet embarqué dans l'application tourne aussi sur des moteurs

@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import puterLocalhost from "../../dev/puter-localhost.mjs";
 import nemesisShared from "../../dev/nemesis-shared.mjs";
+import compatHead from "../../dev/compat-head.mjs";
 export default defineConfig({
-  plugins: [nemesisShared(), puterLocalhost("presentation")],
+  plugins: [compatHead(), nemesisShared(), puterLocalhost("presentation")],
   base: "./",
   build: {
     // Voir documents/vite.config.js : cible modeste, moteurs anciens.

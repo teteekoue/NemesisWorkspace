@@ -1,4 +1,3 @@
-import '../../shared/compat.js';
 import { isNative } from '../../shared/bridge.js';
 import './styles/index.css';
 import { el } from './ui/dom.js';
