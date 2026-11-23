@@ -402,6 +402,16 @@ function polyfillObservers() {
 
 function applyCompat(target) {
   if (!target || !target.document) return;
+  // Certains paquets écrivent `globalThis` ; la page elle-même l'ignore.
+  // L'alias est posé au tout début, avant le moindre module.
+  if (typeof root.globalThis === 'undefined') {
+    try {
+      Object.defineProperty(root, 'globalThis', { value: root, configurable: true, writable: true });
+    } catch (error) {
+      root.globalThis = root;
+    }
+  }
+
   if (typeof target.Element === 'function') polyfillElements(target.Element.prototype);
   polyfillBuiltins();
   polyfillNewer();
