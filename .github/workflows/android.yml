@@ -348,6 +348,7 @@ jobs:
           $ADB shell input keyevent KEYCODE_BACK
           sleep 4
           if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
+            $ADB logcat -d | grep -F "retour :" | tail -3
             fail "le bouton retour n'a pas quitté l'application depuis l'accueil"
           fi
           echo "::notice::Le bouton retour quitte l'application depuis l'accueil."

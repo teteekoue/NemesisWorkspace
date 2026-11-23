@@ -450,7 +450,8 @@ class MainActivity : AppCompatActivity() {
      */
     private fun backOrExit() {
         web.evaluateJavascript(BACK_SCRIPT) { result ->
-            val handled = result.trim('"') == "true"
+            val handled = result.contains("\"handled\":true")
+            Log.i(TAG, "retour : $result (document=$editingDocument)")
             when {
                 // Un dialogue ou un menu ouvert se ferme d'abord.
                 handled -> Unit
@@ -945,30 +946,32 @@ class MainActivity : AppCompatActivity() {
         private val BACK_SCRIPT = """
             (function () {
               try {
-                // Ce qui est ouvert, et visible : les dialogues et les menus
-                // restent dans la page une fois fermés. Un nœud sans surface
-                // affichée ne doit pas retenir le retour.
                 var shown = function (node) {
                   if (!node || !node.getClientRects) return false;
                   if (node.getClientRects().length === 0) return false;
                   var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
                   return !style || (style.visibility !== 'hidden' && style.display !== 'none');
                 };
-                var open = Array.prototype.filter.call(
-                  document.querySelectorAll('[aria-modal="true"], dialog[open], .popover.is-open, .menu.is-open'),
-                  function (node) {
-                    if (node.tagName === 'DIALOG' && !node.open) return false;
-                    return shown(node);
-                  },
-                )[0];
-                if (open) {
-                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                  return true;
+                var candidates = document.querySelectorAll(
+                  '[aria-modal="true"], dialog[open], .popover.is-open, .menu.is-open',
+                );
+                var open = null;
+                for (var i = 0; i < candidates.length; i += 1) {
+                  var node = candidates[i];
+                  if (node.tagName === 'DIALOG' && !node.open) continue;
+                  if (!shown(node)) continue;
+                  open = node;
+                  break;
                 }
-                return false;
+                if (!open) return JSON.stringify({ handled: false });
+                var found = open.tagName.toLowerCase()
+                  + (open.className && typeof open.className === 'string' ? '.' + open.className.trim().split(/\s+/).join('.') : '')
+                  + (open.id ? '#' + open.id : '');
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                return JSON.stringify({ handled: true, found: found });
               } catch (e) {
-                return false;
+                return JSON.stringify({ handled: false, error: String(e) });
               }
             })()
         """.trimIndent()
