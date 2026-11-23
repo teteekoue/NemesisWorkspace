@@ -348,8 +348,17 @@ jobs:
           focus_is_app() {
             $ADB shell dumpsys window | grep -m1 mCurrentFocus | grep -q com.nemesisworkspace.app
           }
-          # Ouvrir l'éditeur de documents depuis l'accueil (première tuile).
-          $ADB shell input tap 300 640 || true
+          # L'accueil, tel qu'il s'affiche : la tuile des documents s'y repère.
+          $ADB exec-out screencap -p > verification/accueil.png || true
+          # Ouvrir l'éditeur de documents : la position de la première tuile
+          # vient de l'application elle-même, pas d'une supposition.
+          TUILE=$($ADB logcat -d | grep -F "interface prête" | tail -1 | grep -oE '\\"tuiles\\":\\"[^\\]*' | head -1)
+          echo "tuiles : $TUILE"
+          POINT=$(echo "$TUILE" | grep -oE '[0-9]+,[0-9]+$')
+          [ -n "$POINT" ] || fail "la position de la tuile des documents est inconnue"
+          $ADB shell input tap "${POINT%,*}" "${POINT#*,}"
+          sleep 20
+          $ADB logcat -d | grep -F "interface prête" | tail -1
           sleep 18
           $ADB logcat -d | grep -F "interface prête" | tail -1
           $ADB shell input keyevent KEYCODE_BACK
@@ -502,6 +511,7 @@ jobs:
         with:
           name: NemesisWorkspace-${{ env.VERSION_NAME }}-apk
           path: |
+            verification/*.png
             release/*.apk
             release/SHA256SUMS.txt
             release/NOTES.md

@@ -923,7 +923,12 @@ class MainActivity : AppCompatActivity() {
                   cards:cards,body:document.body.innerText.trim().length,
                   root:(document.getElementById('root')||{childElementCount:0}).childElementCount,
                   editing:editing,
-                  path:location.pathname});
+                  path:location.pathname,
+                  // La première tuile de l'accueil, en points CSS : de quoi
+                  // la toucher depuis un appareil automatisé.
+                  tuiles:(function(){var t=document.querySelectorAll('.app-card');
+                    var a=t[0];if(!a)return null;var r=a.getBoundingClientRect();
+                    return t.length+' '+Math.round(r.left+r.width/2)+','+Math.round(r.top+r.height/2);})()});
               }catch(e){return JSON.stringify({error:String(e)});}
             })()
         """.trimIndent()
