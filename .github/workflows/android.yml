@@ -357,7 +357,12 @@ jobs:
           POINT=$(echo "$TUILE" | grep -oE '[0-9]+,[0-9]+$')
           [ -n "$POINT" ] || fail "la position de la tuile des documents est inconnue"
           $ADB shell input tap "${POINT%,*}" "${POINT#*,}"
-          sleep 20
+          # La page des documents se charge en un instant, mais son interface
+          # s'installe ensuite : on lui laisse le temps de se signaler.
+          for i in $(seq 1 12); do
+            if $ADB logcat -d | grep -F '"path\":\"/documents/' | grep -qF '"root\":1'; then break; fi
+            sleep 5
+          done
           $ADB logcat -d | grep -F "interface prête" | tail -1
           sleep 18
           $ADB logcat -d | grep -F "interface prête" | tail -1
@@ -365,6 +370,7 @@ jobs:
           sleep 12
           $ADB logcat -d | grep -F "interface prête" | tail -1
           focus_is_app || fail "le retour a quitté l'application depuis la liste des documents"
+          $ADB logcat -d | grep -F "retour :" | tail -1
           $ADB shell input keyevent KEYCODE_BACK
           sleep 10
           $ADB logcat -d | grep -F "interface prête" | tail -1
