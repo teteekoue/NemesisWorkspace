@@ -343,18 +343,32 @@ jobs:
             cat verification/logcat.txt
             fail "l'application a planté"
           fi
-          # Le retour doit agir : sur l'accueil de l'espace, il quitte
-          # l'application (il ne reste plus bloqué dans un dialogue imaginaire).
+          # Le retour, écran par écran :
+          # accueil de l'espace → liste des documents → accueil → sortie.
+          focus_is_app() {
+            $ADB shell dumpsys window | grep -m1 mCurrentFocus | grep -q com.nemesisworkspace.app
+          }
+          # Ouvrir l'éditeur de documents depuis l'accueil (première tuile).
+          $ADB shell input tap 300 640 || true
+          sleep 18
+          $ADB logcat -d | grep -F "interface prête" | tail -1
+          $ADB shell input keyevent KEYCODE_BACK
+          sleep 12
+          $ADB logcat -d | grep -F "interface prête" | tail -1
+          focus_is_app || fail "le retour a quitté l'application depuis la liste des documents"
+          $ADB shell input keyevent KEYCODE_BACK
+          sleep 10
+          $ADB logcat -d | grep -F "interface prête" | tail -1
+          focus_is_app || fail "le retour n'est pas revenu à l'accueil de l'espace"
+          echo "::notice::Le retour remonte de la liste des documents à l'accueil de l'espace."
+
+          # Et depuis l'accueil, il quitte l'application.
           $ADB shell input keyevent KEYCODE_BACK
           sleep 4
-          # Ce qui a le focus est la preuve : après le retour, ce n'est plus
-          # l'application. (Le processus, lui, peut survivre quelques secondes
-          # dans la liste des applications récentes.)
           FOCUS=$($ADB shell dumpsys window | grep -m1 mCurrentFocus || true)
           echo "$FOCUS"
           case "$FOCUS" in
-            *com.nemesisworkspace.app*) $ADB logcat -d | grep -F "retour :" | tail -3
-              fail "le bouton retour n'a pas quitté l'application depuis l'accueil" ;;
+            *com.nemesisworkspace.app*) fail "le bouton retour n'a pas quitté l'application depuis l'accueil" ;;
           esac
           echo "::notice::Le bouton retour quitte l'application depuis l'accueil."
 

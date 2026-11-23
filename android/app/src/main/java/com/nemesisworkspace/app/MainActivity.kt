@@ -303,11 +303,20 @@ class MainActivity : AppCompatActivity() {
      */
     private var editingDocument = false
 
+    /**
+     * L'écran affiché est-il celui d'un éditeur (sa liste ou un document),
+     * plutôt que l'accueil de l'espace ?
+     */
+    private var inTool = false
+
     /** Note l'écran rapporté par l'interface et le laisse dans le journal. */
     private fun reportScreen(report: String?) {
         if (report.isNullOrBlank() || report == "null") return
         Log.i(TAG, "interface prête: $report")
         editingDocument = report.contains("\"editing\":true")
+        // Les trois éditeurs vivent sous leur propre page ; l'accueil de
+        // l'espace de travail est la racine.
+        inTool = Regex("\"path\":\"/(documents|spreadsheet|presentation)/").containsMatchIn(report)
     }
 
     /** Le document reçu à l'ouverture, en attendant que l'interface soit prête. */
@@ -456,9 +465,12 @@ class MainActivity : AppCompatActivity() {
                 // Un dialogue ou un menu ouvert se ferme d'abord.
                 handled -> Unit
                 // Dans un document, le retour remonte à sa liste (l'interface
-                // sait le faire, comme son propre bouton) ; sur une liste ou
-                // un accueil, il quitte l'application.
+                // sait le faire, comme son propre bouton).
                 editingDocument -> web.evaluateJavascript(LEAVE_DOCUMENT, null)
+                // Depuis la liste d'un éditeur, il remonte à l'accueil de
+                // l'espace de travail, qui réunit les trois éditeurs.
+                inTool -> web.loadUrl("$APP_ORIGIN/index.html")
+                // Depuis cet accueil, il quitte l'application.
                 else -> finish()
             }
         }
@@ -910,7 +922,8 @@ class MainActivity : AppCompatActivity() {
                   width:Math.round(window.innerWidth),height:Math.round(window.innerHeight),
                   cards:cards,body:document.body.innerText.trim().length,
                   root:(document.getElementById('root')||{childElementCount:0}).childElementCount,
-                  editing:editing});
+                  editing:editing,
+                  path:location.pathname});
               }catch(e){return JSON.stringify({error:String(e)});}
             })()
         """.trimIndent()
