@@ -254,6 +254,30 @@ function polyfillNewer() {
       return controller.signal;
     };
   }
+  // Le canevas des moteurs anciens ne connaît pas les coins arrondis.
+  const ctx2d = root.CanvasRenderingContext2D && root.CanvasRenderingContext2D.prototype;
+  if (ctx2d && notThere(ctx2d.roundRect)) {
+    ctx2d.roundRect = function roundRect(x, y, width, height, radii) {
+      const list = Array.isArray(radii) ? radii : [radii === undefined ? 0 : radii];
+      const [tl = 0, tr = tl, br = tl, bl = tl] = list.length === 1 ? [list[0]] : list;
+      const max = Math.min(Math.abs(width), Math.abs(height)) / 2;
+      const corner = (value) => Math.min(Math.max(0, value || 0), max);
+      const [a, b, c, d] = [corner(tl), corner(tr), corner(br), corner(bl)];
+      const right = x + width;
+      const bottom = y + height;
+      this.moveTo(x + a, y);
+      this.lineTo(right - b, y);
+      this.quadraticCurveTo(right, y, right, y + b);
+      this.lineTo(right, bottom - c);
+      this.quadraticCurveTo(right, bottom, right - c, bottom);
+      this.lineTo(x + d, bottom);
+      this.quadraticCurveTo(x, bottom, x, bottom - d);
+      this.lineTo(x, y + a);
+      this.quadraticCurveTo(x, y, x + a, y);
+      this.closePath();
+      return this;
+    };
+  }
   // Tableaux : `toSorted` et compagnie gardent l'original intact.
   for (const [name, apply] of [
     ['toSorted', (list, fn) => Array.prototype.slice.call(list).sort(fn)],
