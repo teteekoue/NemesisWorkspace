@@ -461,6 +461,8 @@ jobs:
               --title "NemesisWorkspace ${VERSION_NAME} — Android" \
               --notes-file release/NOTES.md
           fi
+          # Les notes décrivent toujours le paquet qui vient d'être téléversé.
+          gh release edit "$TAG" --notes-file release/NOTES.md
           gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) octets"'
 
       - name: Vérifier l'asset publié
@@ -483,4 +485,9 @@ jobs:
           [ "$local_sum" = "$remote_sum" ] || fail "l'asset publié diffère du paquet vérifié"
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BUILD_TOOLS/apksigner" verify published/*.apk || fail "signature perdue à la publication"
-          echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide."
+          # L'empreinte annoncée sur la page de la version est celle du
+          # fichier qu'on y télécharge : elle est lue et comparée.
+          gh release view "$TAG" --json body --jq .body > published/NOTES-publiees.md
+          announced=$(grep -oE '[0-9a-f]{64}' published/NOTES-publiees.md | head -1)
+          [ "$announced" = "$remote_sum" ] || fail "l'empreinte annoncée ne correspond pas à l'asset"
+          echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide, notes exactes."
