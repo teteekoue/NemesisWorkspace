@@ -359,14 +359,18 @@ class MainActivity : AppCompatActivity() {
             val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val density = resources.displayMetrics.density
             fun css(px: Int) = (px / density).toInt()
+            // Le document peut ne pas encore exister (première mesure, avant
+            // l'analyse du HTML) : les valeurs sont alors posées à l'arrivée
+            // de la page, sans erreur dans le journal.
+            val values = "var s=document.documentElement&&document.documentElement.style;if(!s)return;" +
+                "s.setProperty('--safe-top','${css(bars.top)}px');" +
+                "s.setProperty('--safe-right','${css(bars.right)}px');" +
+                "s.setProperty('--safe-bottom','${css(bars.bottom)}px');" +
+                "s.setProperty('--safe-left','${css(bars.left)}px');" +
+                "s.setProperty('--keyboard','${css(keyboard)}px');"
+            view.evaluateJavascript("(function(){try{$values}catch(e){}})();", null)
             view.evaluateJavascript(
-                "(()=>{const s=document.documentElement.style;" +
-                    "s.setProperty('--safe-top','${css(bars.top)}px');" +
-                    "s.setProperty('--safe-right','${css(bars.right)}px');" +
-                    "s.setProperty('--safe-bottom','${css(bars.bottom)}px');" +
-                    "s.setProperty('--safe-left','${css(bars.left)}px');" +
-                    "s.setProperty('--keyboard','${css(keyboard)}px');" +
-                    "})();",
+                "document.addEventListener('DOMContentLoaded',function(){try{$values}catch(e){}});",
                 null,
             )
             insets

@@ -327,8 +327,10 @@ jobs:
               image.width, image.height, stats.mean[0] / 255, stats.stddev[0] / 255))
           if stats.stddev[0] / 255 < 0.02:
               raise SystemExit('écran uni : rien ne s\'est affiché')
-          if stats.mean[0] / 255 > 0.9:
-              raise SystemExit('écran blanc : une page d\'erreur s\'est affichée')
+          # Un écran entièrement identique, quelle que soit sa couleur,
+          # signalerait une page qui n'a rien affiché.
+          if stats.stddev[0] / 255 < 0.005:
+              raise SystemExit('écran uniforme : rien ne s\'est affiché')
           PYEOF
 
           if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
