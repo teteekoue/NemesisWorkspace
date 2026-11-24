@@ -343,53 +343,36 @@ jobs:
             cat verification/logcat.txt
             fail "l'application a planté"
           fi
-          # Le retour, écran par écran :
-          # accueil de l'espace → liste des documents → accueil → sortie.
+          # Le retour, dans l'ordre attendu : un document ouvert revient à sa
+          # liste, la liste à l'accueil de l'espace, et l'accueil quitte
+          # l'application. Le scénario tape la première tuile de l'accueil.
           focus_is_app() {
             $ADB shell dumpsys window | grep -m1 mCurrentFocus | grep -q com.nemesisworkspace.app
           }
-          # L'accueil, tel qu'il s'affiche : la tuile des documents s'y repère.
           $ADB exec-out screencap -p > verification/accueil.png || true
-          # Ouvrir l'éditeur de documents : la position de la première tuile
-          # vient de l'application elle-même, pas d'une supposition.
           TUILE=$($ADB logcat -d | grep -F "interface prête" | tail -1 | grep -oE '\\"tuiles\\":\\"[^\\]*' | head -1)
-          echo "tuiles : $TUILE"
           POINT=$(echo "$TUILE" | grep -oE '[0-9]+,[0-9]+$')
           [ -n "$POINT" ] || fail "la position de la tuile des documents est inconnue"
           $ADB shell input tap "${POINT%,*}" "${POINT#*,}"
-          # La page des documents se charge en un instant, mais son interface
-          # s'installe ensuite : on lui laisse le temps de se signaler.
+          # La liste s'installe : on attend que la page se signale montée.
           for i in $(seq 1 12); do
-            if $ADB logcat -d | grep -F '"path\":\"/documents/' | grep -qF '"root\":1'; then break; fi
+            $ADB logcat -d | grep -F "interface prête" | tail -1 | grep -qF '"root\":1' && break
             sleep 5
           done
-          $ADB logcat -d | grep -F "interface prête" | tail -1
-          sleep 18
-          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-260
-          $ADB shell input keyevent KEYCODE_BACK
-          sleep 12
-          $ADB logcat -d | grep -F "interface prête" | tail -1
-          if ! focus_is_app; then
-            echo "--- ce que la page a affiché"
-            $ADB logcat -d | grep -F "interface prête" | tail -4 | cut -c1-260
-            echo "--- décisions du bouton retour"
-            $ADB logcat -d | grep -F "retour :" | tail -4 | cut -c1-200
-            echo "--- fenêtre au premier plan"
-            $ADB shell dumpsys window | grep -m1 mCurrentFocus
-            echo "--- erreurs de la page"
-            $ADB logcat -d | grep -E "page: (Uncaught|TypeError|ReferenceError)" | tail -6 | cut -c1-260
-            fail "le retour a quitté l'application depuis la liste des documents"
-          fi
-          $ADB logcat -d | grep -F "retour :" | tail -1
+          sleep 6
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
+
+          # 1) Depuis la liste : le retour ramène à l'accueil de l'espace.
           $ADB shell input keyevent KEYCODE_BACK
           sleep 10
-          $ADB logcat -d | grep -F "interface prête" | tail -1
-          focus_is_app || fail "le retour n'est pas revenu à l'accueil de l'espace"
-          echo "::notice::Le retour remonte de la liste des documents à l'accueil de l'espace."
+          $ADB logcat -d | grep -F "retour :" | tail -1 | cut -c1-160
+          focus_is_app || fail "le retour a quitté l'application depuis la liste des documents"
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
+          echo "::notice::Depuis la liste, le retour ramène à l'accueil de l'espace."
 
-          # Et depuis l'accueil, il quitte l'application.
+          # 2) Depuis l'accueil : le retour quitte l'application.
           $ADB shell input keyevent KEYCODE_BACK
-          sleep 4
+          sleep 5
           FOCUS=$($ADB shell dumpsys window | grep -m1 mCurrentFocus || true)
           echo "$FOCUS"
           case "$FOCUS" in
@@ -397,11 +380,11 @@ jobs:
           esac
           echo "::notice::Le bouton retour quitte l'application depuis l'accueil."
 
-          # Relancer montre de nouveau l'accueil : rien n'est resté cassé.
+          # 3) Relancer : l'accueil revient, rien n'est resté cassé.
           $ADB shell am start -W -n com.nemesisworkspace.app/.MainActivity > /tmp/relance.txt || true
           grep -q "Status: ok" /tmp/relance.txt || fail "l'application ne redémarre pas"
           sleep 12
-          $ADB logcat -d | grep "interface prête" | tail -1
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
 
           $ADB emu kill || true
           kill "$EMULATOR" 2>/dev/null || true

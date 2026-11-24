@@ -301,22 +301,10 @@ class MainActivity : AppCompatActivity() {
      * retour quitte l'application — jamais l'historique de chargement, qui
      * ramènerait une page déjà quittée.
      */
-    private var editingDocument = false
-
-    /**
-     * L'écran affiché est-il celui d'un éditeur (sa liste ou un document),
-     * plutôt que l'accueil de l'espace ?
-     */
-    private var inTool = false
-
     /** Note l'écran rapporté par l'interface et le laisse dans le journal. */
     private fun reportScreen(report: String?) {
         if (report.isNullOrBlank() || report == "null") return
         Log.i(TAG, "interface prête: $report")
-        editingDocument = report.contains("\"editing\":true")
-        // Les trois éditeurs vivent sous leur propre page ; l'accueil de
-        // l'espace de travail est la racine.
-        inTool = Regex("\"path\":\"/(documents|spreadsheet|presentation)/").containsMatchIn(report)
     }
 
     /** Le document reçu à l'ouverture, en attendant que l'interface soit prête. */
@@ -458,19 +446,18 @@ class MainActivity : AppCompatActivity() {
      * puis revient dans l'historique, et ne quitte qu'ensuite.
      */
     private fun backOrExit() {
+        // La page décide à l'instant de l'appui : un dialogue se ferme, puis
+        // un document revient à sa liste, la liste à l'accueil de l'espace,
+        // et l'accueil quitte l'application. Aucun état retenu côté Android,
+        // qui pourrait décrire un écran déjà remplacé.
         web.evaluateJavascript(BACK_SCRIPT) { result ->
-            val handled = result.contains("\"handled\":true")
-            Log.i(TAG, "retour : $result (document=$editingDocument)")
+            Log.i(TAG, "retour : $result")
             when {
-                // Un dialogue ou un menu ouvert se ferme d'abord.
-                handled -> Unit
-                // Dans un document, le retour remonte à sa liste (l'interface
-                // sait le faire, comme son propre bouton).
-                editingDocument -> web.evaluateJavascript(LEAVE_DOCUMENT, null)
-                // Depuis la liste d'un éditeur, il remonte à l'accueil de
-                // l'espace de travail, qui réunit les trois éditeurs.
-                inTool -> web.loadUrl("$APP_ORIGIN/index.html")
-                // Depuis cet accueil, il quitte l'application.
+                result == null || !result.contains("handled") -> finish()
+                result.contains("\"action\":\"overlay\"") -> Unit
+                result.contains("\"action\":\"document\"") ->
+                    web.evaluateJavascript(LEAVE_DOCUMENT, null)
+                result.contains("\"action\":\"tool\"") -> web.loadUrl("$APP_ORIGIN/index.html")
                 else -> finish()
             }
         }
@@ -1013,23 +1000,39 @@ class MainActivity : AppCompatActivity() {
                 var candidates = document.querySelectorAll(
                   '[aria-modal="true"], dialog[open], .popover.is-open, .menu.is-open',
                 );
-                var open = null;
                 for (var i = 0; i < candidates.length; i += 1) {
                   var node = candidates[i];
                   if (node.tagName === 'DIALOG' && !node.open) continue;
                   if (!shown(node)) continue;
-                  open = node;
-                  break;
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                  return JSON.stringify({ handled: true, action: 'overlay' });
                 }
-                if (!open) return JSON.stringify({ handled: false });
-                var found = open.tagName.toLowerCase()
-                  + (open.className && typeof open.className === 'string' ? '.' + open.className.trim().split(/\s+/).join('.') : '')
-                  + (open.id ? '#' + open.id : '');
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                return JSON.stringify({ handled: true, found: found });
+                // Où sommes-nous ? Sur un document ouvert, sur la liste d'un
+                // éditeur, ou sur l'accueil de l'espace ? Aucune barre oblique
+                // inversée ici : ce texte vit dans une chaîne brute Kotlin.
+                var here = location.pathname + location.hash;
+                var tool = here.indexOf('/documents/') >= 0
+                  || here.indexOf('/spreadsheet/') >= 0
+                  || here.indexOf('/presentation/') >= 0;
+                if (!tool) return JSON.stringify({ handled: true, action: 'exit' });
+                var hash = location.hash || '';
+                var editing;
+                if (here.indexOf('/documents/') >= 0) {
+                  // La liste porte l'adresse vide ou #/ ; le reste est un document.
+                  editing = hash.indexOf('#/edit/') === 0 || hash.indexOf('#/new/') === 0;
+                } else if (here.indexOf('/spreadsheet/') >= 0) {
+                  // Sans adresse, le tableur ouvre directement une feuille neuve.
+                  editing = hash === '' || hash === '#'
+                    || hash.indexOf('#/edit/') === 0 || hash.indexOf('#/new/') === 0;
+                } else {
+                  // La présentation nomme sa liste #/home.
+                  editing = hash.indexOf('#/') === 0 && hash !== '#/home';
+                }
+                if (!editing) return JSON.stringify({ handled: true, action: 'tool' });
+                return JSON.stringify({ handled: true, action: 'document' });
               } catch (e) {
-                return JSON.stringify({ handled: false, error: String(e) });
+                return JSON.stringify({ handled: true, action: 'exit', error: String(e) });
               }
             })()
         """.trimIndent()
