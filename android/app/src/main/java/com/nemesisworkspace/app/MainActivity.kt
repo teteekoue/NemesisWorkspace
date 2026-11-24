@@ -39,6 +39,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -446,21 +447,39 @@ class MainActivity : AppCompatActivity() {
      * puis revient dans l'historique, et ne quitte qu'ensuite.
      */
     private fun backOrExit() {
-        // La page décide à l'instant de l'appui : un dialogue se ferme, puis
-        // un document revient à sa liste, la liste à l'accueil de l'espace,
-        // et l'accueil quitte l'application. Aucun état retenu côté Android,
-        // qui pourrait décrire un écran déjà remplacé.
+        // La page décide à l'instant de l'appui : un dialogue se ferme, un
+        // document revient à sa liste, la liste à l'accueil de l'espace, et
+        // l'accueil quitte l'application. Aucun état retenu côté Android, qui
+        // pourrait décrire un écran déjà remplacé.
         web.evaluateJavascript(BACK_SCRIPT) { result ->
             Log.i(TAG, "retour : $result")
-            when {
-                result == null || !result.contains("handled") -> finish()
-                result.contains("\"action\":\"overlay\"") -> Unit
-                result.contains("\"action\":\"document\"") ->
-                    web.evaluateJavascript(LEAVE_DOCUMENT, null)
-                result.contains("\"action\":\"tool\"") -> web.loadUrl("$APP_ORIGIN/index.html")
+            val action = jsonOf(result)?.optString("action").orEmpty()
+            when (action) {
+                // Un dialogue ou un menu ouvert se ferme d'abord.
+                "overlay" -> Unit
+                // Le document revient à la liste de son éditeur.
+                "document" -> web.evaluateJavascript(LEAVE_DOCUMENT, null)
+                // La liste remonte à l'accueil de l'espace de travail.
+                "tool" -> web.loadUrl("$APP_ORIGIN/index.html")
                 else -> finish()
             }
         }
+    }
+
+    /**
+     * Le résultat d'`evaluateJavascript` est une chaîne JSON contenant la
+     * chaîne renvoyée : il faut la lire deux fois pour obtenir l'objet.
+     */
+    private fun jsonOf(result: String?): JSONObject? {
+        if (result.isNullOrBlank() || result == "null") return null
+        return runCatching {
+            val inner = JSONTokener(result).nextValue()
+            when (inner) {
+                is JSONObject -> inner
+                is String -> JSONObject(inner)
+                else -> null
+            }
+        }.getOrNull()
     }
 
     /* ------------------------------------------------------------------ */
@@ -605,6 +624,16 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun isNative(): Boolean = true
+
+        /**
+         * La page demande de quitter l'application (retour depuis l'accueil
+         * de l'espace). C'est elle qui sait quel écran est affiché à
+         * l'instant de l'appui ; Android ne fait qu'obéir.
+         */
+        @JavascriptInterface
+        fun exitApp() {
+            ui.post { finish() }
+        }
 
         @JavascriptInterface
         fun platform(): String = if (isDesktopLike()) "desktop" else "android"
