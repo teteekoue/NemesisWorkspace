@@ -44,14 +44,18 @@ android {
     /*
      * Aucun code natif : l'interface est du JavaScript compilé, et Android
      * exécute le reste avec sa propre machine virtuelle. Un paquet par
-     * architecture aurait donc exactement le même contenu, et un seul paquet
-     * s'installe aussi bien sur un Chromebook Intel (x86), sur un téléphone
-     * arm64-v8a que sur un appareil armeabi-v7a. C'est ce paquet unique qui
-     * est publié ; les architectures ne sont pas une contrainte ici.
+     * architecture pèse donc presque autant que l'universel, mais il est
+     * demandé explicitement : il est publié pour chaque famille (x86 en
+     * premier, pour les Chromebooks et les tablettes Intel), avec en plus le
+     * paquet universel qui s'installe partout.
      */
     splits {
         abi {
-            isEnable = false
+            isEnable = true
+            reset()
+            // Trois familles demandées, et les deux d'Intel : les Chromebooks
+            // et les tablettes x86 sont la priorité.
+            include("x86", "armeabi-v7a", "arm64-v8a")
             isUniversalApk = true
         }
     }
@@ -128,11 +132,13 @@ android {
     }
 
     // Le nom des paquets produits, pour que les versions publiées se
-    // reconnaissent d'un coup d'œil.
+    // reconnaissent d'un coup d'œil : architecture puis numéro de version.
     applicationVariants.all {
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "NemesisWorkspace-${versionName}-universal.apk"
+            val abi = output.getFilter("ABI")
+            val suffix = if (abi.isNullOrBlank()) "universal" else abi
+            output.outputFileName = "NemesisWorkspace-${versionName}-$suffix.apk"
         }
     }
 }

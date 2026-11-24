@@ -38,8 +38,8 @@ concurrency:
 env:
   NODE_VERSION: '22'
   JAVA_VERSION: '17'
-  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.0' }}
-  VERSION_CODE: ${{ github.event.inputs.versionCode || '1' }}
+  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.1' }}
+  VERSION_CODE: ${{ github.event.inputs.versionCode || '2' }}
 
 jobs:
   build:
@@ -204,18 +204,22 @@ jobs:
           # 6. Ce que le runner a réellement produit, avant contrôle.
           find android/app/build/outputs/apk/release -name '*.apk' -printf '%f\n' | sort
 
-          # 7. Un seul paquet, et il doit contenir les trois éditeurs.
-          count=$(find android/app/build/outputs/apk/release -name '*.apk' | wc -l)
-          [ "$count" -eq 1 ] || fail "un seul paquet est publié, $count ont été produits"
-          apk=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
-          "$BUILD_TOOLS/aapt2" dump badging "$apk" > verification/badging.txt 2>&1 \
-            || fail "le manifeste du paquet est illisible"
-          grep -E "^(package|sdkVersion|targetSdkVersion|native-code|launchable-activity)" verification/badging.txt
+          # 7. Les quatre architectures et l'universel, tous présents et signés.
+          for abi in x86 armeabi-v7a arm64-v8a; do
+            [ -f "android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-$abi.apk" ] \
+              || fail "paquet $abi absent"
+            grep -qx "$abi" "verification/NemesisWorkspace-$VERSION_NAME-$abi.abis.txt" \
+              || fail "le paquet $abi n'embarque pas sa propre architecture"
+          done
+          universal="android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-universal.apk"
+          [ -f "$universal" ] || fail "paquet universel absent"
+          "$BUILD_TOOLS/aapt2" dump badging "$universal" > verification/badging.txt 2>&1 \
+            || fail "le manifeste du paquet universel est illisible"
+          grep -E "^(package|sdkVersion|targetSdkVersion|launchable-activity)" verification/badging.txt
           grep -q "launchable-activity" verification/badging.txt || fail "aucun point d'entrée"
-          # Aucun code natif : le paquet est le même partout.
-          if grep -q "native-code" verification/badging.txt; then
-            echo "::warning::du code natif est apparu ; les architectures redeviennent une contrainte"
-          fi
+          count=$(find android/app/build/outputs/apk/release -name '*.apk' | wc -l)
+          [ "$count" -eq 4 ] || fail "quatre paquets sont attendus, $count ont été produits"
+          echo "::notice::$count paquets produits et vérifiés."
           echo "::notice::Vérifications terminées : signature, alignement, manifeste, interface."
 
       - name: Installer et lancer sur un émulateur x86
@@ -232,7 +236,9 @@ jobs:
           "$ANDROID/sdkmanager" --install "emulator" "platform-tools" \
             "system-images;android-26;google_apis;x86" >/dev/null || fail "téléchargement de l'émulateur impossible"
 
-          APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          # L'appareil virtuel est x86 : c'est son paquet qui est installé.
+          APK=android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-x86.apk
+          [ -f "$APK" ] || fail "paquet x86 absent"
           echo "Paquet testé : $APK"
 
           # Un appareil de bureau : 1600×1200, clavier et souris.
@@ -408,21 +414,33 @@ jobs:
           sha256sum ./*.apk > SHA256SUMS.txt
           cat SHA256SUMS.txt
           python3 - <<'PYEOF'
-          import hashlib, os, pathlib
+          import hashlib, pathlib
+          titles = {
+              'x86': 'Ordinateurs et Chromebooks Intel 32 bits (prioritaire)',
+              'armeabi-v7a': 'Téléphones et tablettes ARM 32 bits',
+              'arm64-v8a': 'Téléphones et tablettes ARM 64 bits',
+              'universal': 'Toutes les machines — un seul paquet',
+          }
+          order = ['x86', 'armeabi-v7a', 'arm64-v8a', 'universal']
           rows = []
-          for path in sorted(pathlib.Path('.').glob('*.apk')):
+          apks = sorted(pathlib.Path('.').glob('*.apk'),
+                        key=lambda p: order.index(p.stem.rsplit('-', 1)[-1]))
+          for path in apks:
+              abi = path.stem.rsplit('-', 1)[-1]
               size = path.stat().st_size
               digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              rows.append(f"| {path.name} | toutes (aucun code natif) | {size / 1048576:.1f} Mo | `{digest}` |")
+              rows.append(f"| `{path.name}` | {titles.get(abi, abi)} | {size / 1048576:.1f} Mo | `{digest}` |")
           text = "\n".join([
               "# NemesisWorkspace — Android",
               "",
-              "Un seul paquet : l'interface est compilée en JavaScript, sans code natif,",
-              "si bien qu'il s'installe aussi bien sur un Chromebook Intel (x86), sur un",
-              "téléphone arm64-v8a que sur un appareil armeabi-v7a. Il est signé, aligné,",
-              "et l'interface des trois éditeurs est embarquée dans le fichier.",
+              "L'interface des trois éditeurs est compilée et embarquée dans chaque",
+              "paquet : rien n'est chargé depuis Internet. Chaque paquet est signé,",
+              "aligné et vérifié avant publication, puis retéléchargé pour comparer",
+              "son empreinte.",
               "",
-              "| Paquet | Architectures | Taille | SHA-256 |",
+              "Prenez le paquet de votre machine ; `universal` s'installe partout.",
+              "",
+              "| Paquet | Pour | Taille | SHA-256 |",
               "| --- | --- | --- | --- |",
               *rows,
               "",
@@ -485,7 +503,10 @@ jobs:
           {
             echo "Build Android réussi sur \`${GITHUB_SHA::7}\`."
             echo
-            echo "**Paquet** : $(basename "$(find release -name '*.apk' | head -1)")"
+            echo "**Paquets publiés** :"
+            echo '```'
+            ( cd release && sha256sum ./*.apk )
+            echo '```'
             echo
             echo "**Signature et alignement** :"
             echo '```'
@@ -552,14 +573,24 @@ jobs:
             || fail "l'asset publié n'est pas téléchargeable"
           # Ce que reçoit un utilisateur est exactement ce qui a été vérifié.
           ( cd published && sha256sum ./*.apk )
-          local_sum=$(sha256sum release/*.apk | cut -d' ' -f1)
-          remote_sum=$(sha256sum published/*.apk | cut -d' ' -f1)
-          [ "$local_sum" = "$remote_sum" ] || fail "l'asset publié diffère du paquet vérifié"
+          for apk in release/*.apk; do
+            name=$(basename "$apk")
+            [ -f "published/$name" ] || fail "$name n'a pas été publié"
+            local_sum=$(sha256sum "$apk" | cut -d' ' -f1)
+            remote_sum=$(sha256sum "published/$name" | cut -d' ' -f1)
+            [ "$local_sum" = "$remote_sum" ] || fail "$name publié diffère du paquet vérifié"
+          done
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BUILD_TOOLS/apksigner" verify published/*.apk || fail "signature perdue à la publication"
           # L'empreinte annoncée sur la page de la version est celle du
           # fichier qu'on y télécharge : elle est lue et comparée.
           gh release view "$TAG" --json body --jq .body > published/NOTES-publiees.md
-          announced=$(grep -oE '[0-9a-f]{64}' published/NOTES-publiees.md | head -1)
-          [ "$announced" = "$remote_sum" ] || fail "l'empreinte annoncée ne correspond pas à l'asset"
+          # Les notes annoncent une empreinte par paquet : chacune est
+          # retrouvée dans le fichier réellement téléchargé.
+          for apk in published/*.apk; do
+            name=$(basename "$apk")
+            digest=$(sha256sum "$apk" | cut -d' ' -f1)
+            grep -q "$name\`* |.*\`$digest\`" published/NOTES-publiees.md \
+              || fail "l'empreinte annoncée pour $name ne correspond pas au fichier"
+          done
           echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide, notes exactes."
