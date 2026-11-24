@@ -416,7 +416,7 @@ jobs:
           sha256sum ./*.apk > SHA256SUMS.txt
           cat SHA256SUMS.txt
           python3 - <<'PYEOF'
-          import hashlib, pathlib
+          import hashlib, os, pathlib
           titles = {
               'x86': 'Ordinateurs et Chromebooks Intel 32 bits (prioritaire)',
               'armeabi-v7a': 'Téléphones et tablettes ARM 32 bits',
@@ -425,15 +425,21 @@ jobs:
           }
           order = ['x86', 'armeabi-v7a', 'arm64-v8a', 'universal']
           rows = []
+          def abi_of(path):
+              # Le nom contient des tirets : on retire le préfixe exact.
+              name = path.name
+              prefix = 'NemesisWorkspace-' + os.environ['VERSION_NAME'] + '-'
+              return name[len(prefix):-len('.apk')] if name.startswith(prefix) else name
+
           def rank(path):
-              abi = path.stem.rsplit('-', 1)[-1]
+              abi = abi_of(path)
               return order.index(abi) if abi in order else len(order)
-          stale = [p.name for p in pathlib.Path('.').glob('*.apk') if p.stem.rsplit('-', 1)[-1] not in order]
+          stale = [p.name for p in pathlib.Path('.').glob('*.apk') if abi_of(p) not in order]
           if stale:
               raise SystemExit('paquet inattendu : ' + ', '.join(stale))
           apks = sorted(pathlib.Path('.').glob('*.apk'), key=rank)
           for path in apks:
-              abi = path.stem.rsplit('-', 1)[-1]
+              abi = abi_of(path)
               size = path.stat().st_size
               digest = hashlib.sha256(path.read_bytes()).hexdigest()
               rows.append(f"| `{path.name}` | {titles.get(abi, abi)} | {size / 1048576:.1f} Mo | `{digest}` |")
