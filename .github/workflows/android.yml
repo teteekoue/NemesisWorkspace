@@ -594,7 +594,9 @@ jobs:
             [ "$local_sum" = "$remote_sum" ] || fail "$name publié diffère du paquet vérifié"
           done
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BUILD_TOOLS/apksigner" verify published/*.apk || fail "signature perdue à la publication"
+          for apk in published/*.apk; do
+            "$BUILD_TOOLS/apksigner" verify "$apk" || fail "signature perdue à la publication ($(basename "$apk"))"
+          done
           # L'empreinte annoncée sur la page de la version est celle du
           # fichier qu'on y télécharge : elle est lue et comparée.
           gh release view "$TAG" --json body --jq .body > published/NOTES-publiees.md
