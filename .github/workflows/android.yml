@@ -425,8 +425,13 @@ jobs:
           }
           order = ['x86', 'armeabi-v7a', 'arm64-v8a', 'universal']
           rows = []
-          apks = sorted(pathlib.Path('.').glob('*.apk'),
-                        key=lambda p: order.index(p.stem.rsplit('-', 1)[-1]))
+          def rank(path):
+              abi = path.stem.rsplit('-', 1)[-1]
+              return order.index(abi) if abi in order else len(order)
+          stale = [p.name for p in pathlib.Path('.').glob('*.apk') if p.stem.rsplit('-', 1)[-1] not in order]
+          if stale:
+              raise SystemExit('paquet inattendu : ' + ', '.join(stale))
+          apks = sorted(pathlib.Path('.').glob('*.apk'), key=rank)
           for path in apks:
               abi = path.stem.rsplit('-', 1)[-1]
               size = path.stat().st_size
