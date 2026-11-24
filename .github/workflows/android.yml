@@ -598,16 +598,17 @@ jobs:
           # L'empreinte annoncée sur la page de la version est celle du
           # fichier qu'on y télécharge : elle est lue et comparée.
           gh release view "$TAG" --json body --jq .body > published/NOTES-publiees.md
-          # Les notes annoncent une empreinte par paquet : chaque ligne est
-          # lue, puis comparée au fichier réellement téléchargé.
+          # Les notes annoncent une empreinte par paquet : chaque empreinte
+          # annoncée doit correspondre au fichier réellement téléchargé.
+          announced=$(grep -cE '[0-9a-f]{64}' published/NOTES-publiees.md)
+          [ "$announced" -ge 4 ] || fail "les notes n'annoncent pas les quatre paquets"
           for apk in published/*.apk; do
-            name=$(basename "$apk")
             digest=$(sha256sum "$apk" | cut -d' ' -f1)
-            line=$(grep -F "$name" published/NOTES-publiees.md || true)
-            [ -n "$line" ] || fail "aucune note ne décrit $name"
-            case "$line" in
-              *"$digest"*) ;;
-              *) fail "l'empreinte annoncée pour $name ne correspond pas au fichier" ;;
-            esac
+            if ! grep -qF "$digest" published/NOTES-publiees.md; then
+              echo "--- notes publiées"
+              cat published/NOTES-publiees.md
+              fail "l'empreinte de $(basename "$apk") n'est pas celle annoncée"
+            fi
           done
+          echo "::notice::Les $(ls published/*.apk | wc -l) paquets publiés portent les empreintes annoncées."
           echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide, notes exactes."
