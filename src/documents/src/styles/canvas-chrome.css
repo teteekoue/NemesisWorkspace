@@ -144,7 +144,7 @@
 .canvas-document-surface { min-width: 0; }
 .canvas-inspector, .canvas-outline-panel { flex: 0 0 290px; width: 290px; min-height: 0; background: var(--surface); color: var(--ink); }
 /* Side panes give up width before the page does: however many are open, the page keeps room to read. */
-@media (min-width: 701px) {
+@media (min-width: 641px) {
   .canvas-editor-content > .canvas-document-surface { min-width: min(360px, 40vw); }
   /* Three panes at their least and the page at its least share the window. */
   .canvas-editor-content > :is(.canvas-inspector, .canvas-outline-panel, .review-pane, .canvas-find) { flex-shrink: 1; min-width: min(200px, 20vw); }
@@ -207,7 +207,7 @@
 .table-size-custom label { flex: 1; min-width: 0; display: grid; gap: 5px; }
 .table-size-custom input { width: 100%; padding: 7px; }
 
-@media (max-width: 700px) {
+@media (max-width: 640px) {
   .canvas-editor-body { flex-direction: column; }
   /* Panes stack under the page here, and two or more open at once can be taller than the window:
      the column scrolls rather than cutting the last of them off below the status bar. */

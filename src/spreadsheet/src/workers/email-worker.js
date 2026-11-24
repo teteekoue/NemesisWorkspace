@@ -19,7 +19,7 @@
  * sending reputation, so it never does:
  *   - no Puter session, no send: `user` is only populated for callers that come through
  *     puter.workers.exec(); everyone else gets 401.
- *   - the sender is the caller: the mail names them by their own Puter username (read from their
+ *   - the sender is the caller: the mail names them by their own Username (read from their
  *     session, never from the request) and replies go to their own address when Puter can tell it.
  *   - the body is composed here. Text the caller supplies (workbook name, subject, message, comment) is
  *     HTML-escaped and length-capped, and the only links written are ones this worker checked: https, on
@@ -244,7 +244,7 @@ const FRAME_OPEN =
   `<div style="background:#f6f7f9;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">` +
   `<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px">`;
 const FRAME_CLOSE =
-  `<p style="margin:24px 0 0;font-size:12px;color:#9ca3af">Sent from Spreadsheet on Puter at the request of the person named above.</p></div></div>`;
+  `<p style="margin:24px 0 0;font-size:12px;color:#9ca3af">Sent from Spreadsheet on this device at the request of the person named above.</p></div></div>`;
 
 function button(href, label) {
   return (

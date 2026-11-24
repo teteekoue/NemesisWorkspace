@@ -303,7 +303,7 @@ const CAPPED_MESSAGES = { formatting: 'editor.capped.formatting', checkboxes: 'e
 // Clipboard height can exceed JavaScript's argument limit, even when the
 // cells ultimately pasted are clipped to the sheet's supported dimensions.
 const clipboardWidth = (rows) => rows.reduce((width, row) => Math.max(width, row.length), 0);
-export function editorView({ doc, goHome, openPath, newDoc, templateDoc, importFile, openLive = null, initialRange = null, leaveDialog = null }) {
+export function editorView({ doc, goHome = null, goWorkspace = null, openPath, newDoc, templateDoc, importFile, openLive = null, initialRange = null, leaveDialog = null }) {
   let destroyed = false;
   let palette = null; // the open command palette, closed with the view
   const { wb } = doc;
@@ -6545,7 +6545,22 @@ export function editorView({ doc, goHome, openPath, newDoc, templateDoc, importF
   // after Tab the browser moves on from there; after a choice or a press elsewhere the grid takes focus back.
   const menubar = createMenubar({ flags: commandFlags, run, onClose: (reason) => { if (reason !== 'escape' && reason !== 'tab') keepFocus(); } });
   const topbar = el('div.topbar', {},
-    el('button.icon-btn', { type: 'button', html: icon('back', 20), 'aria-label': t('editor.topbar.back'), title: t('editor.topbar.allSpreadsheets'), onclick: () => run('home') }),
+    el('button.icon-btn', {
+      type: 'button',
+      html: icon('back', 20),
+      'aria-label': t('editor.topbar.back'),
+      title: t('editor.topbar.allSpreadsheets'),
+      onclick: () => run('home'),
+    }),
+    // Un second cran, dans l'application installée seulement : l'accueil de
+    // l'espace, qui réunit les trois éditeurs.
+    goWorkspace && el('button.icon-btn', {
+      type: 'button',
+      html: icon('home', 18),
+      'aria-label': t('editor.topbar.allApps'),
+      title: t('editor.topbar.allApps'),
+      onclick: () => goWorkspace(),
+    }),
     el('span.brand-mark.desktop-only', { html: icon('brand', 16, 2.2), 'aria-hidden': 'true' }),
     quickAccess,
     el('div.topbar-menus', {}, menubar.el),

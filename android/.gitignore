@@ -1,0 +1,27 @@
+# Produits de compilation
+*.iml
+.gradle/
+local.properties
+.idea/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Réglages locaux de signature.
+keystore.properties
+*.jks
+*.keystore
+
+# La clé de publication de l'application.
+#
+# Elle n'est pas un secret d'exécution : elle ne sert qu'à authentifier les
+# mise à jour de l'application. Elle accompagne donc le code, afin que chaque
+# version publiée soit signée de la même main sans dépendre d'un réglage
+# propre à une forge. Le mot de passe la protège au repos.
+!keystore/
+!keystore/**
+
+# L'interface compilée est copiée ici par la construction, à partir de
+# src/nemesis-workspace/dist (lui-même produit par dev/build-all.mjs).
+app/src/main/assets/

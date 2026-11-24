@@ -1,0 +1,11 @@
+import { JSDOM } from 'jsdom';
+const d = new JSDOM('<!doctype html><body></body>');
+globalThis.window = d.window; globalThis.document = d.window.document;
+globalThis.HTMLElement = d.window.HTMLElement; globalThis.Node = d.window.Node;
+globalThis.matchMedia = () => ({ matches: false, addEventListener(){}, removeEventListener(){} });
+d.window.matchMedia = globalThis.matchMedia;
+globalThis.ResizeObserver = class { observe(){} unobserve(){} disconnect(){} };
+const { sidePane } = await import('/home/user/NemesisWorkspace/src/documents/src/views/review-ui.js');
+const pane = sidePane({ title: 'Assistant', className: 'as-pane' });
+console.log('h2 ?', !!pane.heading.querySelector?.('h2'), '| heading tag:', pane.heading.tagName);
+console.log(pane.node.innerHTML.slice(0, 220));

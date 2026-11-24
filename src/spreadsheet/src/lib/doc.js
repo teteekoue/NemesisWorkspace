@@ -1272,7 +1272,7 @@ export class Doc extends EventTarget {
       const res = await client.checkpoint({ file: true, ...(this.isOwner && this.path && this.isXlsxPath ? { at: this.file } : {}) });
       if (this.isOwner && this.path && this.isXlsxPath) {
         const blob = res?.blob ?? await workbookToXlsx(this.wb);
-        // The worker writes the owner's file when Puter lets it; the owner's own browser can always.
+        // The worker writes the owner's file when allowed; the owner's own browser can always.
         if (!res?.wrote) await P.writeFile(this.path, blob, { overwrite: true });
         // The file's history keeps its snapshots as for any file's save, in the background (a rename waits for it).
         const versioning = this._autoVersion(blob).catch(() => {}).finally(() => { if (this._versioning === versioning) this._versioning = null; });

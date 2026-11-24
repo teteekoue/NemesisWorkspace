@@ -82,7 +82,7 @@ export function createTranslatePane({ editor, pkg, error, openDocument, document
   pane.body.append(
     el('label.field', {}, el('span.field-label', {}, 'Translate into'), target),
     source, el('div.rv-actions', {}, translate, wholeDocument), status, output, el('div.rv-actions', {}, insert, copy),
-    hint('Translation uses Puter AI: the selected text, or the whole document, is sent when you choose Translate.'));
+    hint('Translation uses your AI provider: the selected text, or the whole document, is sent when you choose Translate.'));
 
   const selection = () => {
     const engine = editor(); if (!engine) return null;
@@ -95,7 +95,7 @@ export function createTranslatePane({ editor, pkg, error, openDocument, document
     source.textContent = chosen ? `Selection: “${clipText(chosen.text, 120)}${chosen.text.length > 120 ? '…' : ''}”` : 'Select text to translate it here, or translate the whole document into a new one.';
     translate.disabled = !chosen || !P.canUseAi() || !!busy;
     wholeDocument.disabled = !P.canUseAi() || !!busy;
-    if (!P.canUseAi()) status.textContent = 'Translation needs Puter AI. Open this document in Puter to translate.';
+    if (!P.canUseAi()) status.textContent = 'Translation needs an AI provider. Configure one in Settings to translate.';
   }
   async function run() {
     const chosen = selection(); if (!chosen) return;

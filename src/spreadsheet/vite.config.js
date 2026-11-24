@@ -1,11 +1,16 @@
 import { defineConfig } from 'vite';
 import puterLocalhost from '../../dev/puter-localhost.mjs';
+import nemesisShared from '../../dev/nemesis-shared.mjs';
+import compatHead from '../../dev/compat-head.mjs';
 
 export default defineConfig({
-  plugins: [puterLocalhost('spreadsheet')],
+  plugins: [compatHead(), nemesisShared(), puterLocalhost('spreadsheet')],
   base: './',
   build: {
-    target: 'es2022',
+    // Le paquet embarqué dans l'application tourne aussi sur des moteurs
+    // anciens (Chromium de Chromebook, WebView d'Android 8) : la cible reste
+    // donc modeste pour qu'aucune syntaxe récente ne casse la page.
+    target: 'es2017',
     cssTarget: 'safari15',
     // SheetJS is ~1 MB of source and only needed when a file is read or
     // written, so io.js imports it dynamically; the warning threshold is

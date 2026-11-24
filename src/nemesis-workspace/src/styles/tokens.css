@@ -1,0 +1,112 @@
+/**
+ * NemesisWorkspace — jetons de design.
+ *
+ * Une seule palette, déclinée clair / sombre, pour que l'accueil et les
+ * panneaux de réglages se tiennent ensemble.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --bg: #eceff8;
+  --bg-deep: #e2e7f5;
+  --wall-a: #dfe6fb;
+  --wall-b: #eef0fa;
+  --wall-c: #d9e2f9;
+  --surface: #ffffff;
+  --surface-2: #f6f7fc;
+  --surface-3: #eef1fa;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-glass-strong: rgba(255, 255, 255, 0.9);
+  --border: rgba(16, 24, 60, 0.10);
+  --border-strong: rgba(16, 24, 60, 0.18);
+  --scrim: rgba(18, 22, 48, 0.45);
+
+  /* Encre */
+  --ink: #10142b;
+  --ink-2: #3b4265;
+  --ink-3: #6b7295;
+  --ink-4: #9aa0bd;
+
+  /* Accents de marque */
+  --brand-cyan: #22d3ee;
+  --brand-violet: #7c5cff;
+  --brand-indigo: #4f46e5;
+  --brand-grad: linear-gradient(135deg, #22d3ee 0%, #6f5bff 55%, #a855f7 100%);
+  --brand-grad-soft: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(124, 92, 255, 0.16));
+
+  /* Accents d'application */
+  --doc: #375f91;
+  --doc-soft: rgba(55, 95, 145, 0.12);
+  --sheet: #2f7d52;
+  --sheet-soft: rgba(47, 125, 82, 0.12);
+  --slide: #c44730;
+  --slide-soft: rgba(196, 71, 48, 0.12);
+
+  /* Sémantique */
+  --ok: #16a34a;
+  --ok-soft: rgba(22, 163, 74, 0.12);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.12);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.12);
+
+  /* Formes */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --r-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 60, 0.06), 0 2px 8px rgba(16, 24, 60, 0.05);
+  --shadow-2: 0 4px 12px rgba(16, 24, 60, 0.08), 0 12px 32px rgba(16, 24, 60, 0.08);
+  --shadow-3: 0 10px 28px rgba(16, 24, 60, 0.14), 0 30px 70px rgba(16, 24, 60, 0.16);
+  --shadow-glow: 0 10px 40px rgba(111, 91, 255, 0.28);
+
+  --font: 'Segoe UI', system-ui, -apple-system, 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+  --topbar-h: 58px;
+  --dock-h: 74px;
+}
+
+:root[data-theme='dark'] {
+  --bg: #080a14;
+  --bg-deep: #05060d;
+  --wall-a: #0b0f22;
+  --wall-b: #131a35;
+  --wall-c: #0a0d1c;
+  --surface: #151a2c;
+  --surface-2: #1a2034;
+  --surface-3: #212841;
+  --surface-glass: rgba(21, 26, 44, 0.74);
+  --surface-glass-strong: rgba(24, 30, 50, 0.92);
+  --border: rgba(160, 175, 235, 0.13);
+  --border-strong: rgba(160, 175, 235, 0.24);
+  --scrim: rgba(2, 4, 12, 0.62);
+
+  --ink: #eef1ff;
+  --ink-2: #c3cae8;
+  --ink-3: #8f97bb;
+  --ink-4: #636b8d;
+
+  --doc-soft: rgba(110, 155, 220, 0.16);
+  --sheet-soft: rgba(80, 190, 130, 0.14);
+  --slide-soft: rgba(230, 100, 75, 0.15);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.45), 0 14px 40px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 14px 40px rgba(0, 0, 0, 0.55), 0 40px 90px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 10px 44px rgba(111, 91, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

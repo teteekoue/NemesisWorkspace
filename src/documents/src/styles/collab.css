@@ -72,53 +72,321 @@
 .vh-preview-actions { display: flex; align-items: center; gap: 6px; }
 .vh-preview-host { flex: 1; overflow: auto; position: relative; padding: 16px; min-height: 0; }
 
-/* ---- Assistant ---- */
-.as-pane { width: 360px; flex-basis: 360px; }
-.as-pane .canvas-panel-heading h2 { display: flex; align-items: center; gap: 6px; flex: 1; }
-.as-pane .canvas-panel-heading .as-new { margin-left: auto; }
-.as-mark { display: inline-flex; }
-.as-pane .rv-pane-body { gap: 10px; overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.as-replaces { margin: 0 0 6px; font-size: 12px; color: var(--ed-ink-3); }
-.as-log { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow: auto; min-height: 120px; }
-.as-empty { display: flex; flex-direction: column; gap: 10px; padding: 8px 2px; }
-.as-empty-title { margin: 0; font-size: 14px; font-weight: 600; }
-.as-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
-.as-suggestion { padding: 6px 10px; border: 1px solid var(--ed-line); border-radius: 999px; background: var(--ed-card); color: var(--ed-ink); font: 12.5px/1.3 var(--font); cursor: pointer; text-align: left; }
-.as-suggestion:hover, .as-suggestion:focus-visible { border-color: var(--ed-accent); background: var(--ed-hover); }
-.as-message { padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.45; }
+/* ---- Assistant ----
+   La disposition est celle de l'assistant du tableur : une colonne à droite,
+   un en-tête à la hauteur de la barre de menus, un fil de discussion qui
+   occupe la hauteur, et un composeur en carte qui reste en bas. Un seul endroit
+   à retenir pour les trois éditeurs. */
+.as-pane {
+  /* Une colonne souple : elle cède de la place à la page avant de la pousser
+     hors de l'écran, et ne dépasse jamais ce qui reste lisible sur un petit
+     écran (voir les requêtes ci-dessous). */
+  width: 380px;
+  flex: 0 1 380px;
+  min-width: 260px;
+  max-width: 60vw;
+}
+.as-pane .canvas-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 4px 0 10px;
+  /* La hauteur de la barre de menus de l'éditeur : l'en-tête du panneau et
+     celle du document se lisent sur la même ligne, comme dans le tableur. */
+  height: var(--editor-menubar-h, 34px);
+  min-height: 0;
+  flex: none;
+  border-bottom: 1px solid var(--ed-line, var(--hairline));
+}
+.as-pane .canvas-panel-heading > * { flex-shrink: 0; }
+.as-pane .canvas-panel-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.as-pane .canvas-panel-heading .as-new {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--ed-ink-2, var(--ink-2));
+  font: 12px/1 var(--font);
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.as-pane .canvas-panel-heading .as-new:hover { background: var(--ed-hover, var(--surface-2)); color: var(--ed-ink, var(--ink)); }
+.as-pane .canvas-panel-heading .icon-btn { width: 24px; height: 24px; }
+.as-mark { display: inline-flex; color: var(--ed-accent, var(--accent)); }
+/* La colonne du panneau : le fil prend la hauteur, le composeur garde la sienne. */
+.as-pane .rv-pane-body {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.as-conversation { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.as-replaces { margin: 0 0 6px; font-size: 12px; color: var(--ed-ink-3, var(--ink-3)); }
+
+.as-log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 14px 14px 10px;
+}
+.as-log:focus { outline: none; }
+
+/* Un fil vide : la marque, une phrase, et deux points de départ. Au centre,
+   jamais plus large que ce qui se lit bien. */
+.as-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 340px;
+  margin: auto;
+  padding: 16px 4px;
+  text-align: center;
+}
+.as-empty::before {
+  content: '';
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: var(--ed-accent-wash, var(--accent-wash));
+  -webkit-mask: var(--as-sparkle) center / 24px no-repeat;
+  mask: var(--as-sparkle) center / 24px no-repeat;
+  background-color: var(--ed-accent-wash, var(--accent-wash));
+}
+.as-empty-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.as-suggestions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 20px 0 0; padding: 0; }
+.as-suggestion {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--ed-hover, var(--surface-2));
+  color: var(--ed-ink, var(--ink));
+  font: 13px/1.4 var(--font);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.as-suggestion:hover, .as-suggestion:focus-visible { border-color: var(--ed-line, var(--hairline-strong)); }
+
+/* Les messages : la personne à droite dans une bulle, l'assistant à plat. */
+.as-message {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  max-width: 100%;
+  min-width: 0;
+}
+.as-message.is-me {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 8px 12px;
+  background: var(--ed-accent-wash, var(--accent-wash));
+  border-radius: 14px 14px 4px 14px;
+}
+.as-message.is-assistant { align-self: stretch; background: none; }
+.as-message.is-me::after, .as-message.is-assistant::before { display: none; }
 .as-message p { margin: 0 0 6px; }
 .as-message p:last-child { margin-bottom: 0; }
-.as-message.is-me { align-self: flex-end; max-width: 88%; background: var(--ed-accent-wash, var(--accent-wash)); }
-.as-message.is-assistant { background: var(--ed-card); border: 1px solid var(--ed-line); }
-.as-message.is-error { border-color: color-mix(in srgb, var(--critical) 40%, transparent); color: var(--critical); }
-.as-sent { font-size: 11.5px; color: var(--ed-ink-3); }
-.as-kind { font-size: 11.5px; font-weight: 600; color: var(--ed-ink-3); text-transform: uppercase; letter-spacing: .04em; }
-.as-answer { padding: 6px 8px; border-radius: 6px; background: var(--ed-hover); margin: 4px 0 8px; }
-.as-message.is-assistant > .as-answer:first-child { background: none; padding: 0; margin: 0 0 8px; }
-.as-thinking { color: var(--ed-ink-3); }
-.as-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.as-applied { font-size: 12.5px; color: var(--pos); margin-right: auto; }
-.as-form { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--ed-line); padding-top: 10px; }
-.as-scope { display: inline-flex; align-self: flex-start; border: 1px solid var(--ed-line); border-radius: 8px; padding: 2px; gap: 2px; }
-.as-scope-option { border: 0; background: none; padding: 4px 10px; border-radius: 6px; font: 12.5px/1.2 var(--font); color: var(--ed-ink-2); cursor: pointer; }
-.as-scope-option[aria-checked='true'] { background: var(--ed-accent); color: #fff; }
+.as-message.is-error { color: var(--critical, #b4232b); }
+.as-sent { font-size: 11.5px; color: var(--ed-ink-3, var(--ink-3)); }
+.as-kind { font-size: 11.5px; font-weight: 600; color: var(--ed-ink-3, var(--ink-3)); text-transform: uppercase; letter-spacing: .04em; }
+.as-answer { margin: 0 0 8px; }
+.as-thinking { color: var(--ed-ink-3, var(--ink-3)); margin: 0; }
+.as-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.as-applied { font-size: 12.5px; color: var(--pos, #1a7f37); margin-right: auto; }
+.as-steps { display: grid; gap: 2px; margin-bottom: 6px; }
+.as-step { margin: 0; color: var(--ed-ink-3, var(--ink-3)); font-size: 12.5px; line-height: 1.45; }
+.as-step.is-failed { color: var(--critical, #b4232b); }
+
+/* Le composeur : une carte, le champ qui grandit, les outils en bas. */
+.as-form {
+  flex: none;
+  gap: 0;
+  padding: 0 10px 10px;
+  border-top: 0;
+}
+.as-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--ed-line, var(--hairline-strong));
+  border-radius: 14px;
+  background: var(--ed-card, var(--surface));
+  transition: border-color .15s, box-shadow .15s;
+}
+.as-box:focus-within {
+  border-color: var(--ed-accent, var(--accent));
+  box-shadow: 0 0 0 1px var(--ed-accent, var(--accent));
+}
+.as-input {
+  width: 100%;
+  resize: none;
+  /* Deux lignes au repos ; elle grandit avec le texte jusqu'à huit. */
+  min-height: 38px;
+  max-height: 128px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: 13.5px/1.5 var(--font);
+  outline: none;
+  box-shadow: none;
+}
+.as-input::placeholder { color: var(--ed-ink-3, var(--ink-3)); }
+.as-box-row { display: flex; align-items: center; gap: 6px; }
+.as-box-row .as-scope { margin-right: auto; }
+.as-box-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-left: auto; }
+.as-attach {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 0;
+  background: none;
+  color: var(--ed-ink-2, var(--ink-2));
+  cursor: pointer;
+}
+.as-attach:hover { background: var(--ed-hover, var(--surface-2)); color: var(--ed-accent, var(--accent)); }
+.as-send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ed-accent, var(--accent));
+  color: #fff;
+  cursor: pointer;
+}
+.as-send:disabled { background: var(--ed-hover, var(--surface-2)); color: var(--ed-ink-3, var(--ink-3)); cursor: default; }
+.as-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-attachment {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid var(--ed-line, var(--hairline));
+  background: var(--ed-card, var(--surface));
+}
+.as-attachment img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.as-attachment button {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .62);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.as-message .as-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.as-message .as-images img { max-width: 120px; max-height: 90px; border-radius: 8px; border: 1px solid var(--ed-line, var(--hairline)); }
+/* La pastille du fournisseur, dans le titre : un point et un nom, pas une ligne. */
+.as-provider-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 40%;
+  margin-left: auto;
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  background: var(--ed-hover, var(--surface-2));
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ed-ink-3, var(--ink-3));
+  white-space: nowrap;
+}
+.as-provider-line .as-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--pos, #1a7f37); flex: none; }
+.as-provider-line.is-missing .as-dot { background: var(--critical, #b4232b); }
+.as-provider-name { overflow: hidden; text-overflow: ellipsis; }
+/* Le sélecteur de portée, discret : deux choix dans une pastille. */
+.as-scope {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--ed-line, var(--hairline));
+  border-radius: 999px;
+}
+.as-scope-option {
+  border: 0;
+  background: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 11.5px/1.3 var(--font);
+  color: var(--ed-ink-2, var(--ink-2));
+  cursor: pointer;
+}
+.as-scope-option[aria-checked='true'] { background: var(--ed-hover, var(--surface-2)); color: var(--ed-ink, var(--ink)); font-weight: 600; }
+.as-scope-option.is-over { color: var(--critical, #b4232b); }
 .as-scope-option:disabled { opacity: .45; cursor: default; }
-.as-context { margin: 0; font-size: 12px; color: var(--ed-ink-3); }
-.as-context.is-over { color: var(--critical); }
-.as-box { display: flex; gap: 6px; align-items: flex-end; }
-.as-input { flex: 1; resize: vertical; min-height: 60px; font-size: 13px; }
-.as-disclaimer { margin: 0; font-size: 11px; color: var(--ed-ink-3); }
+.as-context { margin: 0; font-size: 11.5px; color: var(--ed-ink-3, var(--ink-3)); }
+.as-context.is-over { color: var(--critical, #b4232b); }
 /* It rises above the page thumbnails while they show (document-views.js sets the strip's height). */
 .as-fab { position: absolute; right: 18px; bottom: calc(18px + var(--view-thumbnails-height, 0px)); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--ed-line); background: var(--ed-card); box-shadow: 0 4px 14px rgba(0, 0, 0, .14); display: grid; place-items: center; cursor: pointer; z-index: 3; }
 .as-fab:focus-visible { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
 @media (hover: hover) { .as-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, .18); } }
 .as-fab[aria-expanded='true'], .as-fab[hidden], .as-title-button[hidden] { display: none; }
 
-@media (max-width: 700px) {
+@media (max-width: 1024px) {
+  .as-pane { width: 320px; flex-basis: 320px; max-width: 46vw; }
+  .as-pane .canvas-panel-heading .as-new { display: none; }
+}
+@media (max-width: 640px) {
   .as-title-button { display: none; }
   .as-pane, .vh-pane { width: 100%; flex-basis: auto; }
+  .as-pane .canvas-panel-heading { height: auto; padding: 8px 12px; }
   .vh-preview { position: absolute; inset: 0; z-index: 6; border-left: 0; }
   .as-fab { right: 12px; bottom: calc(12px + var(--view-thumbnails-height, 0px)); }
   .cl-chip { display: none; }
   .cl-banner { padding: 6px 12px; font-size: 12.5px; }
+}
+
+/* ---- Assistant : les étapes de l'agent ---- */
+.as-steps {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.as-step {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.as-step.is-failed {
+  color: var(--danger, #b4232b);
 }

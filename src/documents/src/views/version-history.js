@@ -54,7 +54,7 @@ export function createVersionHistory({ editor, pkg, doc, error, author, live = (
 
   async function load() {
     status.textContent = '';
-    if (!doc.path) { list.replaceChildren(el('p.rv-empty', {}, 'Versions are kept once the document is saved to Puter.')); saveNow.disabled = true; return; }
+    if (!doc.path) { list.replaceChildren(el('p.rv-empty', {}, 'Versions are kept once the document is saved to this device.')); saveNow.disabled = true; return; }
     saveNow.disabled = !!pkg()?.readOnly;
     list.replaceChildren(el('p.rv-status', {}, 'Loading versions…'));
     const request = loading = listVersions(doc.path, { uid: doc.uid }).then(async found => Promise.all(found.map(async v => ({ ...v, ...await readVersionMeta(v) }))));

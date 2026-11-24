@@ -121,7 +121,7 @@ export function createBackstage(api) {
     return [...heading('Open'),
       el('section.bs-section', {}, el('div.bs-tiles', {},
         tile('Browse this device…', 'folderOpen', act(() => api.openDocument()), { hint: '.docx, .hwp, Markdown, HTML or text', primary: true }),
-        api.openFromCloud ? tile('Browse Puter…', 'folderOpen', act(() => api.openFromCloud()), { hint: 'Any document in your Puter files' }) : null,
+        api.openFromCloud ? tile('Browse this device…', 'folderOpen', act(() => api.openFromCloud()), { hint: 'Any document on this device files' }) : null,
         api.goHome ? tile('All documents', 'home', act(() => api.goHome()), { hint: local ? 'The documents screen' : 'Your documents on Puter' }) : null)),
       api.recentDocuments ? el('section.bs-section', {}, el('h2', {}, 'Recent'), list) : null];
   }
@@ -233,7 +233,7 @@ export function createBackstage(api) {
         if (failure === null) api.refreshTitle?.();
       } finally { copy.disabled = false; }
     } }, 'Save a Copy…');
-    const copyWhere = el('div', {}, el('p.bs-muted', {}, 'Choose where on Puter to keep a copy. You then edit the copy, and the original stays as it is.'), el('div.bs-actions', {}, copy));
+    const copyWhere = el('div', {}, el('p.bs-muted', {}, 'Choose where on this device to keep a copy. You then edit the copy, and the original stays as it is.'), el('div.bs-actions', {}, copy));
     return [...heading('Save', api.saveStatus?.()),
       el('section.bs-section', {}, el('div.bs-tiles', {},
         tile('Save now', 'save', act(() => api.save()), { primary: true, hint: `${MOD_KEY}+S` }),

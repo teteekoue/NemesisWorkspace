@@ -53,7 +53,7 @@ export function rememberedSort() {
   try { const v = localStorage.getItem(SORT_KEY); return SORTS.some((s) => s.id === v) ? v : 'modified'; } catch { return 'modified'; }
 }
 
-export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
+export function homeView({ openPath, newDoc, newFromTemplate, importFile, goWorkspace = null }) {
   let files = [];
   let query = '';
   let sort = rememberedSort();
@@ -132,6 +132,13 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
   const root = el('div.home.view', {},
     fileInput,
     el('header.home-head', {},
+      // L'application installée contient les trois éditeurs : l'accueil des
+      // documents y ouvre sur celui de l'espace. Dans un navigateur, l'espace
+      // est un site voisin, et ce retour n'existe pas.
+      goWorkspace && el('button.icon-btn.home-back', {
+        type: 'button', title: 'All apps', 'aria-label': 'All apps',
+        onclick: () => goWorkspace(),
+      }, el('span', { html: icon('back', 20) })),
       el('h1.brand', {}, el('img.brand-mark', { src: `${import.meta.env.BASE_URL}icons/icon-64.png`, width: 30, height: 30, alt: '' }), el('span', {}, 'Documents')),
       el('div.grow'),
       ...account.nodes),
@@ -140,15 +147,15 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
         el('button.btn.btn-primary.btn-lg', { type: 'button', html: icon('plus', 18, 2.2), onclick: newDoc }, el('span', {}, 'New document')),
         el('button.btn.btn-outline.btn-lg', { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', html: icon('gridView', 18), onclick: (e) => openTemplateMenu(e.currentTarget) }, el('span', {}, 'Templates')),
         el('button.btn.btn-outline.btn-lg', { type: 'button', html: icon('upload', 18), onclick: pickDevice, title: 'Import DOCX, Hanword (.hwp, .hwpx), Markdown, HTML, or text files' }, el('span', {}, 'Import')),
-        P.canPickFiles() && el('button.btn.btn-outline.btn-lg', { type: 'button', html: icon('folderOpen', 18), onclick: openFromPuter }, el('span', {}, 'Open from Puter'))),
+        P.canPickFiles() && el('button.btn.btn-outline.btn-lg', { type: 'button', html: icon('folderOpen', 18), onclick: openFromPuter }, el('span', {}, 'Open from this device'))),
       el('div.home-list-head', {},
         el('h2.home-h2', {}, 'Your documents'),
         listTools),
       list, listStatus),
     // Inside the Puter desktop a new document is saved where the user chooses; the list shows those with the app folder's own.
     el('footer.home-foot', {}, ...(P.asksWhereToSave()
-      ? ['Listed here: the app’s own ', el('code', {}, `${P.FOLDER}/`), ' folder and the documents saved elsewhere on Puter from this device. Save asks where to keep a new document.']
-      : ['Saved as .docx in your Puter cloud under ', el('code', {}, `${P.FOLDER}/`)])));
+      ? ['Listed here: the app’s own ', el('code', {}, `${P.FOLDER}/`), ' folder and the documents saved elsewhere from this device. Save asks where to keep a new document.']
+      : ['Saved as .docx on this device under ', el('code', {}, `${P.FOLDER}/`)])));
 
   /* Drag and drop anywhere on the home screen imports documents. */
   let dragDepth = 0;
@@ -206,7 +213,7 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
   function manageTemplates(templates) {
     const pending = new Set();
     const list = el('div.version-list', { role: 'list', 'aria-label': 'My templates' });
-    const modal = openModal({ title: 'My templates', content: el('div', {}, el('p.modal-text', {}, `Saved in ${P.FOLDER}/Templates on your Puter drive. Open a document and choose "Save as template" in its File menu to add one.`), list) });
+    const modal = openModal({ title: 'My templates', content: el('div', {}, el('p.modal-text', {}, `Saved in ${P.FOLDER}/Templates on this device. Open a document and choose "Save as template" in its File menu to add one.`), list) });
     const render = (items) => {
       list.replaceChildren(...(items.length ? items.map((t) => el('div.file-row', { role: 'listitem' },
         el('span.file-main', {}, el('span.file-icon', { html: icon('brand', 20, 1.7) }), el('span.file-text', {}, el('span.file-name', {}, t.name), el('span.file-meta', {}, relativeTime(t.modified)))),
@@ -269,7 +276,7 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
     } catch (e) {
       if (destroyed || request !== loadRequest) return;
       console.error(e);
-      error = navigator.onLine ? 'Could not load your files from Puter.' : 'You are offline. Connect to see your files.';
+      error = navigator.onLine ? 'Could not load your files from this device.' : 'You are offline. Connect to see your files.';
     }
     loading = false;
     renderList();
@@ -383,7 +390,7 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
       title: 'Delete document?',
       message: inAppFolder(file.path)
         ? `"${P.stripExtension(file.name)}" will be moved out of your Documents folder and deleted. This cannot be undone.`
-        : `"${P.stripExtension(file.name)}" will be deleted from ${madeLocation(file.path)} on Puter. This cannot be undone.`,
+        : `"${P.stripExtension(file.name)}" will be deleted from ${madeLocation(file.path)} on this device. This cannot be undone.`,
       confirmLabel: 'Delete',
     });
     if (!ok) return;
@@ -442,9 +449,9 @@ export function homeView({ openPath, newDoc, newFromTemplate, importFile }) {
       list.append(el('div.empty', {},
         el('div.empty-icon', { html: icon('cloud', 28) }),
         el('h3.empty-title', {}, 'Sign in to see your documents'),
-        el('p.empty-sub', {}, 'Documents are saved as .docx files in your own Puter cloud. Sign in to open them here, or start writing without an account.'),
+        el('p.empty-sub', {}, 'Documents are saved as .docx files on this device. Open them here, or start writing right away.'),
         el('div.row', { style: { justifyContent: 'center', marginTop: '6px' } },
-          el('button.btn.btn-primary', { type: 'button', html: icon('login', 16, 2.2), onclick: () => session.signIn() }, el('span', {}, 'Sign in to Puter')),
+          el('button.btn.btn-primary', { type: 'button', html: icon('login', 16, 2.2), onclick: () => session.signIn() }, el('span', {}, 'Start')),
           el('button.btn.btn-outline', { type: 'button', html: icon('plus', 16, 2.2), onclick: newDoc }, el('span', {}, 'New document')))));
       return;
     }

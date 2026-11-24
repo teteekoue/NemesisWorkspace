@@ -25,7 +25,6 @@
   "couldNotCopy": "无法复制",
   "couldNotRead": "无法读取 {name}",
   "cutNote": "回复已达到长度上限，已被截断。发送“继续”可获取其余内容。",
-  "disclaimer": "助手可能会出错。请核对重要数字。",
   "dontAllow": "不允许",
   "emptyTitle": "询问你的数据，或让助手修改它",
   "error.allowance": "你的 Puter AI 额度暂时已用完。",

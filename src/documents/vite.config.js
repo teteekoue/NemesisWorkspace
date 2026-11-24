@@ -1,13 +1,18 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import puterLocalhost from '../../dev/puter-localhost.mjs';
+import nemesisShared from '../../dev/nemesis-shared.mjs';
+import compatHead from '../../dev/compat-head.mjs';
 import collabDevServer from './dev/collab-dev-server.mjs';
 
 export default defineConfig({
-  plugins: [puterLocalhost('documents'), collabDevServer()],
+  plugins: [compatHead(), nemesisShared(), puterLocalhost('documents'), collabDevServer()],
   base: './',
   build: {
-    target: 'es2022',
+    // Le paquet embarqué dans l'application tourne aussi sur des moteurs
+    // anciens (Chromium de Chromebook, WebView d'Android 8) : la cible reste
+    // donc modeste pour qu'aucune syntaxe récente ne casse la page.
+    target: 'es2017',
     cssTarget: 'safari15',
     rollupOptions: {
       input: {

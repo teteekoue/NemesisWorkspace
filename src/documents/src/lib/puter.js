@@ -1,3 +1,5 @@
+import { isNative } from '../../../shared/bridge.js';
+
 /**
  * Everything the app asks of Puter, in one place, so the rest of the code
  * never touches the global directly and the dev harness can swap in a mock.
@@ -396,9 +398,18 @@ export async function kvSet(key, value) {
 
 /* ---------- AI ---------- */
 
-/** Whether Puter's AI is reachable (puter.ai.chat). */
+/**
+ * Whether an AI provider is ready. The local SDK always has `ai.chat`, so its
+ * presence says nothing: what counts is that a provider is configured and
+ * enabled in Settings ▸ AI.
+ */
 export function canUseAi() {
-  return typeof sdk()?.ai?.chat === 'function';
+  try {
+    if (sdk()?.isLocal) return !!sdk()?.ai?.canChat?.();
+    return typeof sdk()?.ai?.chat === 'function';
+  } catch {
+    return false;
+  }
 }
 
 /** One chat completion for a prompt; resolves the SDK's response object. */
@@ -487,4 +498,32 @@ export function downloadBlob(blob, filename) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* ------------------------------------------------------------------ */
+/* Retour vers l'espace de travail                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * L'espace de travail a-t-il même une marche au-dessus de cet éditeur ?
+ *
+ * Dans l'application installée, oui : les trois éditeurs sont réunis sous un
+ * accueil commun, et le retour comme le bouton « Toutes les applications » y
+ * mènent. Dans un navigateur, l'espace est un site voisin — on n'y « revient »
+ * pas depuis un document, et proposer le chemin laisserait croire le contraire.
+ */
+export function hasWorkspaceHome() {
+  try {
+    return isNative();
+  } catch {
+    return false;
+  }
+}
+
+/** L'accueil de l'espace de travail, une fois résolu à l'exécution. */
+export const WORKSPACE_HOME = '../index.html';
+
+/** Y aller, si cette marche existe. */
+export function goWorkspaceHome() {
+  if (hasWorkspaceHome()) location.assign(WORKSPACE_HOME);
 }

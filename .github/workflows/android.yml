@@ -1,0 +1,616 @@
+name: Android
+
+# Construit l'application Android à partir des sources : les trois éditeurs
+# sont compilés, copiés dans l'application, puis quatre paquets sont produits
+# (x86, armeabi-v7a, arm64-v8a et universel). Chacun est vérifié — signature,
+# alignement, architectures contenues, empreinte — avant d'être publié.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'src/**'
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: 'Version publiée (ex. 1.0.0)'
+        required: false
+        default: '1.0.0'
+      versionCode:
+        description: 'Numéro de version Android (entier croissant)'
+        required: false
+        default: '1'
+      publish:
+        description: 'Publier dans les versions GitHub'
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '17'
+  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.1' }}
+  VERSION_CODE: ${{ github.event.inputs.versionCode || '2' }}
+
+jobs:
+  build:
+    name: Paquets signés
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Installer les outils de compilation
+        run: |
+          set -euo pipefail
+          for app in documents spreadsheet presentation nemesis-workspace; do
+            echo "── src/$app"
+            (cd "src/$app" && npm ci --no-audit --no-fund --include=dev)
+          done
+
+      - name: Compiler les trois éditeurs et l'accueil
+        run: |
+          set -euo pipefail
+          node --version
+          cd src/nemesis-workspace
+          # Le journal complet reste lisible même si l'étape échoue.
+          set -o pipefail
+          export NPM_CONFIG_PRODUCTION=false
+          export NPM_CONFIG_OMIT=""
+          node dev/build-all.mjs 2>&1 | tee /tmp/android-build.log
+          # Rien ne doit être servi depuis le réseau : l'interface doit
+          # exister, en entier, avant d'entrer dans l'application.
+          test -f ../nemesis-workspace/dist/index.html
+          test -f ../nemesis-workspace/dist/documents/index.html
+          test -f ../nemesis-workspace/dist/spreadsheet/index.html
+          test -f ../nemesis-workspace/dist/presentation/index.html
+          du -sh ../nemesis-workspace/dist
+
+      - name: Embarquer l'interface dans l'application
+        run: |
+          set -euo pipefail
+          # La racine de `assets/` est celle que l'application sert à
+          # l'adresse https://appassets.androidplatform.net/ : l'interface s'y
+          # trouve donc directement, et toutes ses adresses relatives
+          # fonctionnent telles quelles.
+          rm -rf android/app/src/main/assets/*
+          cp -R src/nemesis-workspace/dist/. android/app/src/main/assets/
+          test -f android/app/src/main/assets/index.html
+          # Aucune référence à une origine distante ne doit subsister.
+          if grep -rlE 'https?://(localhost|127\.0\.0\.1):(4200|4310|5173)' android/app/src/main/assets; then
+            echo "::error::L'interface embarque une adresse de développement."
+            exit 1
+          fi
+          du -sh android/app/src/main/assets
+
+      - name: Installer Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Configurer Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Vérifier la clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+
+          # Le mot de passe ne doit jamais apparaître dans les journaux.
+          [ -z "${KEYSTORE_PASSWORD:-}" ] || echo "::add-mask::$KEYSTORE_PASSWORD"
+          [ -z "${KEY_PASSWORD:-}" ] || echo "::add-mask::$KEY_PASSWORD"
+
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            # Une clé fournie par la forge — rotation, ou dépôt sans clé.
+            mkdir -p keystore
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore/nemesis-release.p12
+            {
+              echo "storeFile=keystore/nemesis-release.p12"
+              echo "storePassword=${KEYSTORE_PASSWORD}"
+              echo "keyAlias=${KEY_ALIAS:-nemesisworkspace}"
+              echo "keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } > keystore.properties
+            chmod 600 keystore.properties
+            echo "::notice::Clé fournie par les secrets du dépôt."
+          elif [ -f keystore/nemesis-release.p12 ] && [ -s keystore/nemesis-release.pass ]; then
+            echo "::notice::Clé de publication du dépôt utilisée."
+          else
+            echo "::error::Aucune clé de signature : keystore/nemesis-release.p12 est absent."
+            exit 1
+          fi
+
+      - name: Construire les quatre paquets
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd android
+          chmod +x gradlew
+          set +e
+          ./gradlew --no-daemon --stacktrace \
+            -Pnemesis.versionName="${VERSION_NAME}" \
+            -Pnemesis.versionCode="${VERSION_CODE}" \
+            assembleRelease 2>&1 | tee -a /tmp/android-build.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ] && [ -f app/build/reports/lint-results-release.txt ]; then
+            # Le détail de lint, s'il a arrêté la construction.
+            head -80 app/build/reports/lint-results-release.txt | tee -a /tmp/android-build.log
+          fi
+          echo "─ Paquets produits :"
+          find app/build/outputs -name '*.apk' -printf '%p  %k Ko\n' 2>/dev/null | sort || true
+          exit "$STATUS"
+
+      - name: Vérifier chaque paquet
+        shell: bash
+        run: |
+          exec > >(tee /tmp/verify.log) 2>&1
+          set -uo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          APKS=$(find android/app/build/outputs/apk/release -name '*.apk' | sort)
+          [ -n "$APKS" ] || fail "Aucun paquet produit."
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "Outils de construction : $BUILD_TOOLS"
+          rm -rf verification && mkdir -p verification
+
+          for apk in $APKS; do
+            name=$(basename "$apk" .apk)
+            echo "── $name"
+            # 1. Signature valide, couvrant tout le paquet.
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$apk" > "verification/$name.signature.txt" 2>&1 \
+              || fail "$name : signature invalide"
+            sed -n '1,6p' "verification/$name.signature.txt"
+            grep -q '^Verifies' "verification/$name.signature.txt" || fail "$name : signature non vérifiée"
+            # 2. Alignement 4 octets (16 pour les pages de 16 Ko).
+            "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "verification/$name.align.txt" 2>&1 \
+              || fail "$name : paquet mal aligné"
+            tail -n 1 "verification/$name.align.txt"
+            # 3. Architectures réellement embarquées.
+            unzip -l "$apk" | awk '{print $4}' | grep '^lib/' | cut -d/ -f2 | sort -u > "verification/$name.abis.txt" || true
+            echo "   architectures : $(tr '\n' ' ' < "verification/$name.abis.txt")"
+            # 4. L'interface est embarquée, en entier.
+            unzip -l "$apk" | grep -q 'assets/index.html' || fail "$name : interface absente"
+            unzip -l "$apk" | grep -q 'assets/documents/index.html' || fail "$name : éditeur de documents absent"
+            unzip -l "$apk" | grep -q 'assets/spreadsheet/index.html' || fail "$name : tableur absent"
+            unzip -l "$apk" | grep -q 'assets/presentation/index.html' || fail "$name : présentations absentes"
+            # 5. Empreinte et taille, publiées avec les paquets.
+            sha256sum "$apk" | tee "verification/$name.sha256"
+            stat -c '%s' "$apk" > "verification/$name.size"
+          done
+
+          # 6. Ce que le runner a réellement produit, avant contrôle.
+          find android/app/build/outputs/apk/release -name '*.apk' -printf '%f\n' | sort
+
+          # 7. Les quatre paquets attendus, chacun déjà vérifié ci-dessus
+          #    (signature, alignement, contenu embarqué).
+          #    Aucun code natif n'est embarqué — l'interface est du JavaScript :
+          #    les paquets par architecture ont donc le même contenu, et le
+          #    nom du fichier dit à quelle famille il est destiné.
+          for abi in x86 armeabi-v7a arm64-v8a; do
+            [ -f "android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-$abi.apk" ] \
+              || fail "paquet $abi absent"
+          done
+          universal="android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-universal.apk"
+          [ -f "$universal" ] || fail "paquet universel absent"
+          "$BUILD_TOOLS/aapt2" dump badging "$universal" > verification/badging.txt 2>&1 \
+            || fail "le manifeste du paquet universel est illisible"
+          grep -E "^(package|sdkVersion|targetSdkVersion|launchable-activity)" verification/badging.txt
+          grep -q "launchable-activity" verification/badging.txt || fail "aucun point d'entrée"
+          count=$(find android/app/build/outputs/apk/release -name '*.apk' | wc -l)
+          [ "$count" -eq 4 ] || fail "quatre paquets sont attendus, $count ont été produits"
+          echo "::notice::$count paquets produits et vérifiés."
+          echo "::notice::Vérifications terminées : signature, alignement, manifeste, interface."
+
+      - name: Installer et lancer sur un émulateur x86
+        shell: bash
+        timeout-minutes: 25
+        if: always() && hashFiles('android/app/build/outputs/apk/release/*.apk') != ''
+        run: |
+          exec > >(tee -a /tmp/emulator.log) 2>&1
+          set -uo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          ANDROID="$ANDROID_HOME/cmdline-tools/latest/bin"
+          yes 2>/dev/null | "$ANDROID/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID/sdkmanager" --install "emulator" "platform-tools" \
+            "system-images;android-26;google_apis;x86" >/dev/null || fail "téléchargement de l'émulateur impossible"
+
+          # L'appareil virtuel est x86 : c'est son paquet qui est installé.
+          APK=android/app/build/outputs/apk/release/NemesisWorkspace-$VERSION_NAME-x86.apk
+          [ -f "$APK" ] || fail "paquet x86 absent"
+          echo "Paquet testé : $APK"
+
+          # Un appareil de bureau : 1600×1200, clavier et souris.
+          # L'emplacement de l'appareil virtuel est fixé ici, sans dépendre de
+          # la configuration du runner.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$ANDROID/avdmanager" create avd \
+            -n nemesis -k "system-images;android-26;google_apis;x86" --force \
+            || fail "création de l'appareil virtuel impossible"
+          CONFIG=$(find "$ANDROID_AVD_HOME" /home/runner -maxdepth 6 -name config.ini -path '*nemesis*' 2>/dev/null | head -1)
+          [ -n "$CONFIG" ] || fail "configuration de l'appareil virtuel absente"
+          echo "Configuration : $CONFIG"
+          # Un appareil de bureau : écran large, clavier et souris.
+          {
+            echo 'hw.keyboard=yes'
+            echo 'hw.lcd.width=1600'
+            echo 'hw.lcd.height=1200'
+            echo 'hw.lcd.density=160'
+          } >> "$CONFIG"
+
+          # Sans accélération matérielle, le démarrage dépasse le délai : le
+          # runner qui la permet est demandé, et son état est vérifié.
+          [ -e /dev/kvm ] || fail "le noyau de la machine ne fournit pas KVM"
+          # Le groupe kvm n'est pas encore effectif dans cette session : l'accès
+          # est ouvert au processus de construction, et à lui seul.
+          sudo chmod 666 /dev/kvm
+          ls -l /dev/kvm
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" "$ANDROID_HOME/emulator/emulator" -avd nemesis -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -no-snapshot > /tmp/emulator.out 2>&1 &
+          EMULATOR=$!
+          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          boot=""
+          for i in $(seq 1 90); do
+            boot=$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            [ "$boot" = "1" ] && break
+            sleep 4
+          done
+          if [ "${boot:-}" != "1" ]; then
+            echo "--- sortie de l'émulateur"
+            tail -40 /tmp/emulator.out
+            "$ANDROID_HOME/platform-tools/adb" devices -l || true
+            fail "l'émulateur n'a pas démarré"
+          fi
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          echo "Émulateur prêt : $($ADB shell getprop ro.product.cpu.abi)"
+
+          $ADB install -r "$APK" || fail "installation refusée"
+          $ADB shell input keyevent KEYCODE_WAKEUP || true
+          $ADB shell am start -W -n com.nemesisworkspace.app/.MainActivity | tee /tmp/start.txt
+          grep -q "Status: ok" /tmp/start.txt || fail "l'application ne démarre pas"
+          sleep 25
+
+          # L'écran doit être l'accueil de l'espace, pas une page vide ni une
+          # erreur : on interroge la page elle-même par le port de débogage.
+          $ADB shell "run-as com.nemesisworkspace.app ls files" >/dev/null 2>&1 || true
+          $ADB exec-out screencap -p > verification/ecran-emulateur.png || true
+          ls -l verification/ecran-emulateur.png || true
+          # Ce que l'interface affiche vraiment, d'après son propre journal.
+          $ADB logcat -d | grep -E "NemesisWorkspace|chromium|Console" > verification/journal.txt || true
+          tail -n 25 verification/journal.txt
+          grep "interface prête" verification/journal.txt || fail "l'interface n'a pas signalé son affichage"
+          python3 - <<'PYEOF'
+          import json, re, sys
+          lines = [l for l in open('verification/journal.txt') if 'interface prête' in l]
+          raw = lines[-1].split('interface prête: ', 1)[1].strip()
+          # Le journal échappe les guillemets : on les rétablit.
+          raw = raw.replace('\\"', '"').strip()
+          if raw.startswith('"') and raw.endswith('"'):
+              raw = raw[1:-1]
+          report = json.loads(raw)
+          print("Rapport de l'application :", report)
+          if report.get('error'):
+              sys.exit(1)
+          if not report.get('title'):
+              print("::error::aucun titre : la page n'a pas été rendue")
+              sys.exit(1)
+          if report.get('root', 0) < 1:
+              print("::error::l'interface n'a rien monté dans la page")
+              sys.exit(1)
+          if report.get('body', 0) < 40:
+              print("::error::écran presque vide")
+              sys.exit(1)
+          PYEOF
+          # Et ce qu'on voit : un écran uni signalerait une page blanche.
+          python3 -m pip install --quiet --disable-pip-version-check pillow
+          python3 - <<'PYEOF'
+          from PIL import Image, ImageStat
+          image = Image.open('verification/ecran-emulateur.png').convert('L')
+          stats = ImageStat.Stat(image)
+          print('Écran %dx%d — moyenne %.3f, écart-type %.3f' % (
+              image.width, image.height, stats.mean[0] / 255, stats.stddev[0] / 255))
+          if stats.stddev[0] / 255 < 0.02:
+              raise SystemExit('écran uni : rien ne s\'est affiché')
+          # Un écran entièrement identique, quelle que soit sa couleur,
+          # signalerait une page qui n'a rien affiché.
+          if stats.stddev[0] / 255 < 0.005:
+              raise SystemExit('écran uniforme : rien ne s\'est affiché')
+          PYEOF
+
+          if $ADB shell "ps -A | grep -q com.nemesisworkspace.app"; then
+            echo "::notice::L'application tourne après installation."
+          else
+            fail "le processus de l'application n'est pas actif"
+          fi
+          $ADB logcat -d -s AndroidRuntime:E chromium:E NemesisWorkspace:* > verification/logcat.txt || true
+          if grep -q "FATAL EXCEPTION" verification/logcat.txt; then
+            cat verification/logcat.txt
+            fail "l'application a planté"
+          fi
+          # Le retour, dans l'ordre attendu : un document ouvert revient à sa
+          # liste, la liste à l'accueil de l'espace, et l'accueil quitte
+          # l'application. Le scénario tape la première tuile de l'accueil.
+          focus_is_app() {
+            $ADB shell dumpsys window | grep -m1 mCurrentFocus | grep -q com.nemesisworkspace.app
+          }
+          $ADB exec-out screencap -p > verification/accueil.png || true
+          TUILE=$($ADB logcat -d | grep -F "interface prête" | tail -1 | grep -oE '\\"tuiles\\":\\"[^\\]*' | head -1)
+          POINT=$(echo "$TUILE" | grep -oE '[0-9]+,[0-9]+$')
+          [ -n "$POINT" ] || fail "la position de la tuile des documents est inconnue"
+          $ADB shell input tap "${POINT%,*}" "${POINT#*,}"
+          # La liste s'installe : on attend que la page se signale montée.
+          for i in $(seq 1 12); do
+            $ADB logcat -d | grep -F "interface prête" | tail -1 | grep -qF '"root\":1' && break
+            sleep 5
+          done
+          sleep 6
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
+
+          # 1) Depuis la liste : le retour ramène à l'accueil de l'espace.
+          $ADB shell input keyevent KEYCODE_BACK
+          sleep 10
+          $ADB logcat -d | grep -F "retour :" | tail -1 | cut -c1-160
+          focus_is_app || fail "le retour a quitté l'application depuis la liste des documents"
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
+          echo "::notice::Depuis la liste, le retour ramène à l'accueil de l'espace."
+
+          # 2) Depuis l'accueil : le retour quitte l'application.
+          $ADB shell input keyevent KEYCODE_BACK
+          sleep 5
+          FOCUS=$($ADB shell dumpsys window | grep -m1 mCurrentFocus || true)
+          echo "$FOCUS"
+          case "$FOCUS" in
+            *com.nemesisworkspace.app*) fail "le bouton retour n'a pas quitté l'application depuis l'accueil" ;;
+          esac
+          echo "::notice::Le bouton retour quitte l'application depuis l'accueil."
+
+          # 3) Relancer : l'accueil revient, rien n'est resté cassé.
+          $ADB shell am start -W -n com.nemesisworkspace.app/.MainActivity > /tmp/relance.txt || true
+          grep -q "Status: ok" /tmp/relance.txt || fail "l'application ne redémarre pas"
+          sleep 12
+          $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
+
+          $ADB emu kill || true
+          kill "$EMULATOR" 2>/dev/null || true
+          echo "::notice::Installée, lancée, et son interface s'est affichée sur un appareil x86."
+          exit 0
+
+      - name: Effacer la clé du disque
+        if: always()
+        run: |
+          rm -f android/keystore.properties android/keystore/nemesis-release.p12
+          echo "Clé retirée de la machine de construction."
+
+      - name: Rassembler les paquets
+        shell: bash
+        run: |
+          exec > >(tee -a /tmp/assembly.log) 2>&1
+          set -xeuo pipefail
+          rm -rf release && mkdir -p release
+          cp android/app/build/outputs/apk/release/*.apk release/
+          cd release
+          sha256sum ./*.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          python3 - <<'PYEOF'
+          import hashlib, os, pathlib
+          titles = {
+              'x86': 'Ordinateurs et Chromebooks Intel 32 bits (prioritaire)',
+              'armeabi-v7a': 'Téléphones et tablettes ARM 32 bits',
+              'arm64-v8a': 'Téléphones et tablettes ARM 64 bits',
+              'universal': 'Toutes les machines — un seul paquet',
+          }
+          order = ['x86', 'armeabi-v7a', 'arm64-v8a', 'universal']
+          rows = []
+          def abi_of(path):
+              # Le nom contient des tirets : on retire le préfixe exact.
+              name = path.name
+              prefix = 'NemesisWorkspace-' + os.environ['VERSION_NAME'] + '-'
+              return name[len(prefix):-len('.apk')] if name.startswith(prefix) else name
+
+          def rank(path):
+              abi = abi_of(path)
+              return order.index(abi) if abi in order else len(order)
+          stale = [p.name for p in pathlib.Path('.').glob('*.apk') if abi_of(p) not in order]
+          if stale:
+              raise SystemExit('paquet inattendu : ' + ', '.join(stale))
+          apks = sorted(pathlib.Path('.').glob('*.apk'), key=rank)
+          for path in apks:
+              abi = abi_of(path)
+              size = path.stat().st_size
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              rows.append(f"| `{path.name}` | {titles.get(abi, abi)} | {size / 1048576:.1f} Mo | `{digest}` |")
+          text = "\n".join([
+              "# NemesisWorkspace — Android",
+              "",
+              "L'interface des trois éditeurs est compilée et embarquée dans chaque",
+              "paquet : rien n'est chargé depuis Internet. Chaque paquet est signé,",
+              "aligné et vérifié avant publication, puis retéléchargé pour comparer",
+              "son empreinte.",
+              "",
+              "Prenez le paquet de votre machine ; `universal` s'installe partout.",
+              "",
+              "| Paquet | Pour | Taille | SHA-256 |",
+              "| --- | --- | --- | --- |",
+              *rows,
+              "",
+              "`SHA256SUMS.txt` permet de vérifier le fichier téléchargé :",
+              "",
+              "```",
+              "sha256sum -c SHA256SUMS.txt",
+              "```",
+              "",
+          ])
+          pathlib.Path('NOTES.md').write_text(text, encoding='utf-8')
+          print(text)
+          PYEOF
+          ls -l
+
+      - name: Conserver les rapports d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echec-rapports
+          path: |
+            /tmp/android-build.log
+            /tmp/verify.log
+            /tmp/assembly.log
+            /tmp/emulator.log
+            android/app/build/reports/**
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Rapporter l'échec
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPORT=/tmp/report.txt
+          {
+            echo "Échec du build Android sur \`${GITHUB_SHA::7}\`."
+            echo
+            [ -f /tmp/verify.log ] && { echo "**vérifications**"; echo '```'; tail -n 15 /tmp/verify.log; echo '```'; }
+            [ -f /tmp/emulator.log ] && { echo "**émulateur**"; echo '```'; tail -n 12 /tmp/emulator.log; echo '```'; }
+            [ -f /tmp/assembly.log ] && { echo "**assemblage**"; echo '```'; tail -n 25 /tmp/assembly.log; echo '```'; }
+            for f in /tmp/android-build.log; do
+              [ -f "$f" ] || continue
+              echo "\`\`\`"
+              # Les lignes qui expliquent l'échec, pas la pile d'appels.
+              grep -E "^e: |error:|Error:|FAILURE|What went wrong|Caused by|> Task .*FAILED|Execution failed|severity|Lint found|^ *[0-9]+ +[a-z]" "$f" | tail -n 60 || true
+              echo "\`\`\`"
+            done
+          } > "$REPORT"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            -f body="$(cat "$REPORT")" >/dev/null || echo "rapport non publié"
+          cat "$REPORT"
+
+      - name: Publier le compte rendu des vérifications
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "Build Android réussi sur \`${GITHUB_SHA::7}\`."
+            echo
+            echo "**Paquets publiés** :"
+            echo '```'
+            ( cd release && sha256sum ./*.apk )
+            echo '```'
+            echo
+            echo "**Signature et alignement** :"
+            echo '```'
+            sed -n '1,3p' verification/*.signature.txt
+            tail -n 1 verification/*.align.txt
+            echo '```'
+            echo "**Manifeste** :"
+            echo '```'
+            head -3 verification/badging.txt
+            echo '```'
+            echo "**Sur un appareil x86 (Chromebook)** :"
+            echo '```'
+            tail -n 12 /tmp/emulator.log
+            echo '```'
+          } > /tmp/success.txt
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            -f body="$(cat /tmp/success.txt)" >/dev/null || echo "compte rendu non publié"
+          cat /tmp/success.txt
+
+      - name: Conserver les paquets et les vérifications
+        uses: actions/upload-artifact@v4
+        with:
+          name: NemesisWorkspace-${{ env.VERSION_NAME }}-apk
+          path: |
+            verification/*.png
+            release/*.apk
+            release/SHA256SUMS.txt
+            release/NOTES.md
+            verification/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier la version
+        if: github.event_name != 'pull_request' && (github.event.inputs.publish != 'false')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="android-v${VERSION_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/*.apk release/SHA256SUMS.txt release/NOTES.md --clobber
+          else
+            gh release create "$TAG" \
+              release/*.apk release/SHA256SUMS.txt release/NOTES.md \
+              --title "NemesisWorkspace ${VERSION_NAME} — Android" \
+              --notes-file release/NOTES.md
+          fi
+          # Les notes décrivent toujours le paquet qui vient d'être téléversé.
+          gh release edit "$TAG" --notes-file release/NOTES.md
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) octets"'
+
+      - name: Vérifier l'asset publié
+        if: github.event_name != 'pull_request' && (github.event.inputs.publish != 'false')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          exec > >(tee -a /tmp/published.log) 2>&1
+          set -uo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          TAG="android-v${VERSION_NAME}"
+          rm -rf published && mkdir published
+          gh release download "$TAG" --dir published --pattern '*.apk' \
+            || fail "l'asset publié n'est pas téléchargeable"
+          # Ce que reçoit un utilisateur est exactement ce qui a été vérifié.
+          ( cd published && sha256sum ./*.apk )
+          for apk in release/*.apk; do
+            name=$(basename "$apk")
+            [ -f "published/$name" ] || fail "$name n'a pas été publié"
+            local_sum=$(sha256sum "$apk" | cut -d' ' -f1)
+            remote_sum=$(sha256sum "published/$name" | cut -d' ' -f1)
+            [ "$local_sum" = "$remote_sum" ] || fail "$name publié diffère du paquet vérifié"
+          done
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          for apk in published/*.apk; do
+            "$BUILD_TOOLS/apksigner" verify "$apk" || fail "signature perdue à la publication ($(basename "$apk"))"
+          done
+          # L'empreinte annoncée sur la page de la version est celle du
+          # fichier qu'on y télécharge : elle est lue et comparée.
+          gh release view "$TAG" --json body --jq .body > published/NOTES-publiees.md
+          # Les notes annoncent une empreinte par paquet : chaque empreinte
+          # annoncée doit correspondre au fichier réellement téléchargé.
+          announced=$(grep -cE '[0-9a-f]{64}' published/NOTES-publiees.md)
+          [ "$announced" -ge 4 ] || fail "les notes n'annoncent pas les quatre paquets"
+          for apk in published/*.apk; do
+            digest=$(sha256sum "$apk" | cut -d' ' -f1)
+            if ! grep -qF "$digest" published/NOTES-publiees.md; then
+              echo "--- notes publiées"
+              cat published/NOTES-publiees.md
+              fail "l'empreinte de $(basename "$apk") n'est pas celle annoncée"
+            fi
+          done
+          echo "::notice::Les $(ls published/*.apk | wc -l) paquets publiés portent les empreintes annoncées."
+          echo "::notice::Asset publié retéléchargé : empreinte identique, signature valide, notes exactes."

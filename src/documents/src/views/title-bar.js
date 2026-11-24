@@ -26,10 +26,20 @@ function writeList(key, list) { try { localStore()?.setItem(key, JSON.stringify(
  * switch, Comments, Share, the Apps button and the account button (`account`: both, or Settings and
  * puter.js's <puter-user-menu>, see accountControls).
  */
-export function createTitleBar({ w, c, a, local, title, status, account, menus, focusEditor, entries, openShortcuts, keymapShortcut = () => null }) {
+export function createTitleBar({ w, c, a, local, title, status, account, menus, focusEditor, entries, openShortcuts, keymapShortcut = () => null, workspaceHome = false }) {
   /* ---- Quick access ---- */
   small(c.undo, { icon: 'undo' }); small(c.redo, { icon: 'redo' });
-  const homeButton = command('All Documents', 'home', () => a.goHome?.());
+  /*
+   * « All Documents » mène à la liste ; dans l'application installée, l'espace
+   * de travail est un cran au-dessus, et c'est lui que quitte l'éditeur quand
+   * on s'arrête là. Dans un navigateur, la liste est le point d'arrivée.
+   */
+  const goDocuments = a.goHome || (() => {});
+  const homeButton = command(
+    workspaceHome ? 'All apps' : 'All Documents',
+    'home',
+    workspaceHome ? () => { a.goWorkspace?.(); } : goDocuments,
+  );
   const saveQuick = command(local ? 'Download .docx' : 'Save', 'save', () => (local ? c.exportButton : c.saveButton).click(), { shortcut: local ? null : `${MOD_KEY}+S` });
   const printQuick = command('Print', 'print', () => c.printButton.click(), { shortcut: `${MOD_KEY}+P` });
   // Undo's arrow lists what can be undone; choosing an entry undoes it and everything after it.

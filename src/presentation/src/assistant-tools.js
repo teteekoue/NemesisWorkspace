@@ -934,11 +934,28 @@ function checkFormatArgs(args) {
     throw new ToolError("list must be bullet, number, or none.");
 }
 
+/**
+ * Où poser la diapositive suivante.
+ *
+ * Sans position, une diapositive se pose après celle que la personne regarde.
+ * C'est juste pour un ajout isolé, faux pour une suite : le deck ne bouge pas
+ * la vue, donc « après la diapositive 1 » redonne la place 2 à chaque fois, et
+ * les diapositives d'un plan se retrouvent dans l'ordre inverse. Une suite
+ * construite par l'assistant repart de la dernière qu'il a posée.
+ */
+const lastPlaced = new WeakMap();
+
 function newSlideAt(pres, position, env, extra = 0) {
   const count = slides(pres).length;
   if (count + 1 + extra > MAX_SLIDES)
     throw new ToolError(`A presentation holds at most ${MAX_SLIDES} slides.`);
-  const at = position == null ? env.slideIndex() + 2 : Number(position);
+  let at;
+  if (position == null) {
+    const placed = lastPlaced.get(pres);
+    at = placed == null ? env.slideIndex() + 2 : Math.min(placed + 1, count + 1);
+  } else {
+    at = Number(position);
+  }
   if (!Number.isInteger(at) || at < 1 || at > count + 1)
     throw new ToolError(`position must be from 1 to ${count + 1}.`);
   return at;
@@ -977,6 +994,7 @@ async function addSlide(pres, args, env) {
     };
     const slide = addDesignedSlide(pres, layout, env.theme(), content);
     P.moveSlide(pres, slide, at - 1);
+    lastPlaced.set(pres, slideNumber(pres, slide));
     // The template's stand-in text goes where nothing was given for it: a
     // kicker, a footer and its number, or a title or body left out.
     if (layout !== "blank") {
@@ -1033,6 +1051,7 @@ async function duplicateSlide(pres, args, env) {
 }
 
 async function moveSlide(pres, args, env) {
+  lastPlaced.delete(pres);
   const slide = slideAt(pres, args.slide, env);
   const part = P.getSlidePartName(slide);
   const to = Number(args.to);
@@ -1085,6 +1104,7 @@ async function deleteSlides(pres, args, env) {
         "At least one slide must remain in the presentation.",
       );
     removeSlides(pres, targets);
+    lastPlaced.delete(pres);
   });
   return {
     content: `Deleted ${numbers.length === 1 ? `slide ${numbers[0]}` : `slides ${numbers.join(", ")}`}. The slides after them have moved up; their numbers have changed.`,

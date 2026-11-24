@@ -16,8 +16,11 @@ import { session } from '../lib/session.js';
 import * as P from '../lib/puter.js';
 import { hasUserMenu } from './user-menu.js';
 
-export const APPS_EMBED_URL = 'https://puter.com/embed/apps';
-export const APPS_NEWTAB_URL = 'https://puter.com/#apps';
+// NemesisWorkspace : plus aucun service Puter, et une seule suite. Le lanceur
+// d'applications tierces n'est plus proposé ; les adresses restent déclarées,
+// vides, pour les modules qui les importent.
+export const APPS_EMBED_URL = '';
+export const APPS_NEWTAB_URL = '';
 
 // The classic "more apps" grid of nine dots.
 const GRID_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>';
@@ -33,6 +36,8 @@ const accountKey = () => session.accountId || '';
 
 /** The title bar button, or null inside a Puter app window and where <puter-user-menu> has its own. */
 export function appsButton() {
+  // NemesisWorkspace : aucun lanceur d'applications tierces.
+  return null;
   if (P.isApp() || hasUserMenu()) return null;
   return el('button.icon-btn.apps-btn', {
     type: 'button', html: GRID_SVG, title: 'Apps', 'aria-label': 'Apps',
@@ -86,7 +91,7 @@ function build() {
     title: 'Open in new tab', 'aria-label': 'Open apps in a new tab',
   });
   frame = el('iframe.apps-frame', {
-    title: 'Your Puter apps', referrerpolicy: 'strict-origin-when-cross-origin', allow: 'clipboard-read; clipboard-write',
+    title: 'Your apps', referrerpolicy: 'strict-origin-when-cross-origin', allow: 'clipboard-read; clipboard-write',
   });
   const body = el('div.apps-panel-body.is-loading', {},
     el('div.apps-panel-loading', { role: 'status', 'aria-label': 'Loading apps' },
@@ -106,7 +111,7 @@ function build() {
   // Bound before src is set, so a fast (cached) load can't slip past.
   frame.addEventListener('load', () => body.classList.remove('is-loading'), { once: true });
   syncTheme();
-  frame.src = APPS_EMBED_URL;
+  if (APPS_EMBED_URL) frame.src = APPS_EMBED_URL;
   builtFor = accountKey();
   document.body.append(panel);
 }

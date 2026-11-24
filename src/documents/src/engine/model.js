@@ -2169,7 +2169,13 @@ export class TextDocument {
     if (options?.advanced) return advancedFind(this.paragraphs, query, options, { styles: this.styles, numbering: this.numbering });
     return findText(this.paragraphs, query, options);
   }
+  /**
+   * Remplacer du texte. `query` est soit la chaîne cherchée (Find & Replace),
+   * soit un objet `{ find }` : les deux formes viennent de l'interface, et un
+   * appel automatisé (l'assistant) n'a pas de sélection à respecter.
+   */
   replaceMatches(query, text, options = {}, all = false) {
+    if (query && typeof query === 'object' && !Array.isArray(query)) query = query.find ?? '';
     if (options.advanced) {
       const [start, end] = this.range;
       const matches = this.findMatches(query, options).filter(m => all || m.start === start && m.end === end);

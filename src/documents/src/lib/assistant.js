@@ -54,8 +54,8 @@ export function readReply(response) {
 /** The readable message for a failed request (the provider's error stays on it as the cause). */
 export function assistantError(e) {
   const msg = String(e?.message || e?.error?.message || e || '');
-  if (/insufficient|balance|credit|funds|quota|allowance|402/i.test(msg)) return 'Your Puter AI allowance has run out for now.';
-  if (/sign.?in|unauthori[sz]ed|401/i.test(msg)) return 'Sign in to Puter to use the assistant.';
+  if (/insufficient|balance|credit|funds|quota|allowance|402/i.test(msg)) return 'The AI allowance has run out for now.';
+  if (/sign.?in|unauthori[sz]ed|401/i.test(msg)) return 'Start to use the assistant.';
   if (/context|too long|maximum.*length|max(?:imum)? tokens/i.test(msg)) return 'That is too much text for the assistant at once. Select a shorter passage.';
   if (/network|failed to fetch|offline|timed? ?out/i.test(msg)) return 'The AI service could not be reached. Check your connection.';
   return 'The assistant could not answer. Try again in a moment.';
