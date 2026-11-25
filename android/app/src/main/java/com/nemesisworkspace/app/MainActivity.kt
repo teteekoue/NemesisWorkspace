@@ -4,6 +4,10 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
@@ -31,6 +35,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -90,6 +95,15 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var assetLoader: WebViewAssetLoader
 
+    /* La dictée : la vue intégrée n'a pas de reconnaissance vocale, celle du
+       système en a une. L'interface demande une écoute, le système reconnaît,
+       et chaque phrase reconnue revient à la page qui l'insère dans le texte. */
+    private var listening = false
+    private var pendingDictation = 0
+    private var speech: SpeechRecognizer? = null
+    private var speechLanguage = "fr-FR"
+    private var microphoneRequested = false
+
     private val openDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         deliverPick(uri?.let { listOf(it) } ?: emptyList())
     }
@@ -108,6 +122,14 @@ class MainActivity : AppCompatActivity() {
      */
     private val createDocumentAs = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         deliverSaveAs(uri)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != MICROPHONE_REQUEST) return
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        if (granted && microphoneRequested) listen() else speak("dictateDenied")
+        microphoneRequested = false
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -256,6 +278,9 @@ class MainActivity : AppCompatActivity() {
                 // avant que l'interface ne commence à s'afficher : c'est la
                 // différence entre un écran vide et l'application.
                 view.evaluateJavascript(COMPATIBILITY, null)
+                // La dictée avant tout le reste : l'éditeur décide à son
+                // démarrage s'il affiche le bouton.
+                view.evaluateJavascript(DICTATION_BRIDGE, null)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -265,6 +290,8 @@ class MainActivity : AppCompatActivity() {
                 // par le service d'impression Android, qui sait aussi produire
                 // un PDF.
                 view.evaluateJavascript(PRINT_BRIDGE, null)
+                // La dictée, pour les moteurs qui ne l'ont pas.
+                view.evaluateJavascript(DICTATION_BRIDGE, null)
                 // Ce que l'écran affiche réellement, dans le journal : utile
                 // sur un appareil qu'on ne peut pas brancher, et vérifiable par
                 // la construction.
@@ -501,6 +528,119 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
         }.getOrNull()
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Dictée : la reconnaissance vocale du système                        */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Demande le micro une fois, puis écoute. Le système reconnaît la parole ;
+     * chaque phrase reconnue est renvoyée à la page, qui l'insère au curseur
+     * comme le ferait la dictée d'un navigateur.
+     */
+    private fun beginListening(language: String) {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            speak("dictateUnavailable")
+            return
+        }
+        speechLanguage = language.ifBlank { java.util.Locale.getDefault().toLanguageTag() }
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            microphoneRequested = true
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), MICROPHONE_REQUEST)
+            return
+        }
+        listen()
+    }
+
+    private fun listen() {
+        if (speech == null) {
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                speak("dictateUnavailable")
+                return
+            }
+            speech = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+
+                    override fun onError(error: Int) {
+                        // Le silence n'est pas une panne : on réécoute.
+                        if (listening && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                            ui.postDelayed({ if (listening) listen() }, 300)
+                            return
+                        }
+                        listening = false
+                        when (error) {
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> speak("dictateDenied")
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> speak("dictatingBusy")
+                            else -> speak("dictateStopped")
+                        }
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val words = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull().orEmpty()
+                        if (words.isNotBlank()) emitDictation(words, true)
+                        // Une dictée continue : la phrase suivante est écoutée.
+                        if (listening) ui.postDelayed({ if (listening) listen() }, 200)
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val words = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull().orEmpty()
+                        if (words.isNotBlank()) emitDictation(words, false)
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+            }
+        }
+        listening = true
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLanguage)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        try {
+            speech?.startListening(intent)
+        } catch (error: Exception) {
+            listening = false
+            speak("dictateStopped")
+        }
+    }
+
+    private fun endListening() {
+        listening = false
+        try {
+            speech?.stopListening()
+            speech?.cancel()
+        } catch (error: Exception) {
+            // Rien à arrêter.
+        }
+    }
+
+    /** Une phrase reconnue, transmise à la page au fil de l'eau. */
+    private fun emitDictation(text: String, final: Boolean) {
+        val payload = JSONObject()
+            .put("text", text)
+            .put("final", final)
+        val script = "window.__nemesisDictation&&window.__nemesisDictation($payload);"
+        ui.post { web.evaluateJavascript(script, null) }
+    }
+
+    /** Ce que l'interface doit savoir pour parler d'elle-même. */
+    private fun speak(event: String) {
+        ui.post {
+            web.evaluateJavascript("window.__nemesisDictationState&&window.__nemesisDictationState('$event');", null)
+        }
     }
 
     /* ------------------------------------------------------------------ */
@@ -850,6 +990,34 @@ class MainActivity : AppCompatActivity() {
             return savedAs.getAndSet(null) ?: JSONObject().put("linked", false).toString()
         }
 
+        /** Commencer à dicter, dans la langue de la personne. */
+        @JavascriptInterface
+        fun startDictation(language: String) {
+            ui.post {
+                if (!listening) {
+                    listening = true
+                    beginListening(language)
+                }
+            }
+        }
+
+        /** Arrêter la dictée. */
+        @JavascriptInterface
+        fun stopDictation() {
+            ui.post {
+                listening = false
+                endListening()
+            }
+        }
+
+        /** La reconnaissance vocale du système est-elle disponible ici ? */
+        @JavascriptInterface
+        fun canDictate(): Boolean {
+            val available = SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+            Log.i(TAG, "dictée : reconnaissance du système " + if (available) "disponible" else "absente")
+            return available
+        }
+
         /** Le nom sous lequel un fichier importé est connu de l'original. */
         @JavascriptInterface
         fun hasSource(name: String): Boolean = sourceUriFor(name) != null
@@ -975,11 +1143,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        endListening()
+        speech?.destroy()
+        speech = null
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
 
     companion object {
+        private const val MICROPHONE_REQUEST = 41
         const val TAG = "NemesisWorkspace"
         const val APP_DOMAIN = "appassets.androidplatform.net"
         const val APP_ORIGIN = "https://$APP_DOMAIN"
@@ -1128,6 +1300,61 @@ class MainActivity : AppCompatActivity() {
                 "try{window.NemesisHost.print();}catch(e){console.warn('impression',e);}" +
                 "setTimeout(()=>window.dispatchEvent(new Event('afterprint')),600);" +
                 "};})();"
+
+        /**
+         * La dictée d'un navigateur n'existe pas dans la vue intégrée : celui-ci
+         * reçoit à la place la reconnaissance vocale du système, derrière la
+         * même interface (`SpeechRecognition`) — l'interface n'a donc rien à
+         * changer pour que la dictée fonctionne.
+         */
+        private val DICTATION_BRIDGE = """
+            (function () {
+              if (window.__nemesisDictationReady) return;
+              if (!window.NemesisHost || !window.NemesisHost.canDictate || !window.NemesisHost.canDictate()) return;
+              window.__nemesisDictationReady = true;
+              var listeners = {};
+              window.__nemesisDictation = function (event) {
+                var handler = listeners.result;
+                if (!handler) return;
+                var list = [{ transcript: event.text, confidence: 1 }];
+                list.isFinal = !!event.final;
+                handler({ resultIndex: 0, results: [list] });
+              };
+              window.__nemesisDictationState = function (state) {
+                if (state === 'dictateDenied' && listeners.error) listeners.error({ error: 'not-allowed' });
+                else if (state === 'dictateUnavailable' && listeners.error) listeners.error({ error: 'service-not-allowed' });
+                else if (state === 'dictateStopped' && listeners.end) listeners.end();
+              };
+              function Reco() {
+                this.continuous = true;
+                this.interimResults = true;
+                this.lang = 'fr-FR';
+              }
+              Reco.prototype.start = function () {
+                window.NemesisHost.startDictation(this.lang || 'fr-FR');
+              };
+              Reco.prototype.stop = function () {
+                window.NemesisHost.stopDictation();
+                if (listeners.end) listeners.end();
+              };
+              Reco.prototype.abort = Reco.prototype.stop;
+              Reco.prototype.addEventListener = function (type, handler) {
+                listeners[type] = handler;
+              };
+              Reco.prototype.removeEventListener = function (type, handler) {
+                if (listeners[type] === handler) delete listeners[type];
+              };
+              ['result', 'error', 'end'].forEach(function (name) {
+                Object.defineProperty(Reco.prototype, 'on' + name, {
+                  get: function () { return listeners[name] || null; },
+                  set: function (handler) { listeners[name] = handler; },
+                  configurable: true
+                });
+              });
+              window.SpeechRecognition = Reco;
+              window.webkitSpeechRecognition = Reco;
+            })();
+        """.trimIndent()
 
         /** Ce que l'écran affiche : titre, langue, taille, contenu, nature. */
         private val SCREEN_REPORT = """

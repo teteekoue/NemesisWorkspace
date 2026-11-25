@@ -66,14 +66,16 @@ check('un second cran mène à l\'espace', /allApps/.test(spreadsheet) || /All a
 console.log('\nPrésentation : bouton retour et cran supérieur');
 const presentation = bundleOf('presentation');
 check('le pont est consulté', /NemesisHost/.test(presentation));
-// Le bouton est construit avant la fonction de sortie : il doit passer par
-// une phrase différée, qui ne l'appelle qu'au clic. Le paquet minifié garde le
-// libellé du bouton et l'appel en deux temps (`await sortie() && await accueil()`).
+// Le bouton est construit avant la fonction de sortie : il passe par une
+// phrase différée, qui n'appelle la sortie qu'au clic. Le paquet minifié garde
+// le libellé du bouton (traduit à l'affichage, donc encore en anglais ici) et
+// une fonction fléchée asynchrone qui attend la sortie avant l'accueil
+// (`async()=>{if(!await x())return;await y()}`).
 const back = presentation.match(/Back to presentations[^;]{0,80}/)?.[0] || '';
 check('le bouton retour existe dans l\'éditeur', back.length > 0);
 check(
   'le retour attend la sortie avant de revenir',
-  /await .{1,12}\(\)&&await .{1,12}\(\)/.test(back) || /await .{1,12}\(\) && await .{1,12}\(\)/.test(back),
+  /async\(\)=>\{await .{1,12}\(\)&&await .{1,12}\(\)\}/.test(presentation),
   back.slice(0, 90),
 );
 check(

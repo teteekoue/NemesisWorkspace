@@ -1,17 +1,21 @@
 /** Tiny element builder: el('button.btn.btn-primary', { onclick }, children...) */
 import { t, formatDate } from '../i18n/index.js';
+/** L'interface s'affiche en français (voir src/shared/fr.js). */
+import { french } from '../../../shared/fr.js';
 
 export function el(spec, attrs = {}, ...children) {
   const [tag, ...classes] = spec.split('.');
   const node = document.createElement(tag || 'div');
   if (classes.length) node.className = classes.join(' ');
 
-  for (const [k, v] of Object.entries(attrs || {})) {
+  for (let [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined) continue;
     // `false` leaves an attribute out (`title: cond && '…'`), but a boolean property whose default is
     // on has to be switched off: `spellcheck: false` keeps the browser from marking formulas. jsdom has
     // no spellcheck property, so that one is named to reach the attribute path.
     if (v === false && typeof node[k] !== 'boolean' && k !== 'spellcheck') continue;
+    // Les textes d'attribut passent par le dictionnaire, comme le contenu.
+    const text = typeof v === 'string' && (k === 'title' || k.startsWith('aria-') || k === 'alt' || k === 'placeholder') ? french(v) : v;
     if (k.startsWith('on') && typeof v === 'function') {
       node.addEventListener(k.slice(2), v);
     } else if (k === 'html') {
@@ -24,9 +28,9 @@ export function el(spec, attrs = {}, ...children) {
         else node.style[prop] = val;
       }
     } else if (k in node && k !== 'list' && k !== 'form') {
-      node[k] = v;
+      node[k] = text;
     } else {
-      node.setAttribute(k, v === true ? '' : v);
+      node.setAttribute(k, text === true ? '' : text);
     }
   }
 
@@ -41,7 +45,7 @@ export function el(spec, attrs = {}, ...children) {
 export function append(node, children) {
   for (const child of children.flat(Infinity)) {
     if (!child) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    node.append(child instanceof Node ? child : document.createTextNode(french(String(child))));
   }
   return node;
 }

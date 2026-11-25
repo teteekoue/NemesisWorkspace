@@ -1,11 +1,16 @@
+/** L'interface s'affiche en français (voir src/shared/fr.js). */
+import { french } from '../../../shared/fr.js';
+
 /** Tiny element builder: el('button.btn.btn-primary', { onclick }, children...) */
 export function el(spec, attrs = {}, ...children) {
   const [tag, ...classes] = spec.split('.');
   const node = document.createElement(tag || 'div');
   if (classes.length) node.className = classes.join(' ');
 
-  for (const [k, v] of Object.entries(attrs || {})) {
+  for (let [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined) continue;
+    // Les textes d'attribut passent par le dictionnaire, comme le contenu.
+    const text = typeof v === 'string' && (k === 'title' || k.startsWith('aria-') || k === 'alt' || k === 'placeholder') ? french(v) : v;
     if (v === false) {
       // Enumerated and ARIA attributes need the literal "false"; omission
       // leaves browser defaults (e.g. spellchecking and image dragging) on.
@@ -22,9 +27,9 @@ export function el(spec, attrs = {}, ...children) {
     } else if (k === 'style' && typeof v === 'object') {
       Object.assign(node.style, v);
     } else if (k in node && k !== 'list' && k !== 'form') {
-      node[k] = v;
+      node[k] = text;
     } else {
-      node.setAttribute(k, v === true ? '' : v);
+      node.setAttribute(k, text === true ? '' : text);
     }
   }
 
@@ -42,7 +47,7 @@ export const listItem = node => el('div', { role: 'listitem' }, node);
 export function append(node, children) {
   for (const child of children.flat(Infinity)) {
     if (!child) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    node.append(child instanceof Node ? child : document.createTextNode(french(String(child))));
   }
   return node;
 }

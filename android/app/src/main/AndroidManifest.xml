@@ -7,6 +7,16 @@
          fournisseur d'IA configuré par la personne. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- La dictée : la reconnaissance vocale du système écoute pour l'interface. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
 
     <!-- Une application de bureau : elle fonctionne au clavier et à la souris
          comme au doigt, sur téléphone, tablette, Chromebook et téléviseur. -->

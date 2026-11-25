@@ -3,7 +3,7 @@
  * Le panneau ne doit plus rien empiler sous le champ : ni compte de mots, ni
  * mention de confidentialité, ni nom de fournisseur.
  */
-import { JSDOM } from 'jsdom';
+import { JSDOM } from '../src/documents/node_modules/jsdom/lib/api.js';
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url:'http://localhost/documents/' });
 globalThis.window = dom.window; globalThis.document = dom.window.document;
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});

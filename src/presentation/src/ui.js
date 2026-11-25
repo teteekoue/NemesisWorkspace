@@ -1,3 +1,5 @@
+/** L'interface s'affiche en français (voir src/shared/fr.js). */
+import { french } from "../../shared/fr.js";
 import {
   createElement,
   Presentation,
@@ -285,17 +287,17 @@ export function el(tag, attrs = {}, ...children) {
     if (key === "class") node.className = value;
     else if (key.startsWith("on"))
       node.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key === "text") node.textContent = value;
+    else if (key === "text") node.textContent = french(String(value));
     else if (key === "value") {
       if (tag === "textarea") node.defaultValue = value;
       else node.value = value;
     } else if (key === "checked") node.checked = value;
-    else node.setAttribute(key, value === true ? "" : String(value));
+    else node.setAttribute(key, value === true ? "" : french(String(value)));
   }
   for (const child of children.flat(Infinity)) {
     if (child != null && child !== false)
       node.append(
-        child instanceof Node ? child : document.createTextNode(String(child)),
+        child instanceof Node ? child : document.createTextNode(french(String(child))),
       );
   }
   return node;

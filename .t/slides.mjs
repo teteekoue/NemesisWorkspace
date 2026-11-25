@@ -6,7 +6,7 @@
  * contenu se retrouve décalé — exactement ce que l'utilisateur voit.
  */
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
+import { JSDOM } from '../src/documents/node_modules/jsdom/lib/api.js';
 
 const dom = new JSDOM('<!doctype html><body></body>');
 globalThis.window = dom.window;
