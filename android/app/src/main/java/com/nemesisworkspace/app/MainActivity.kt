@@ -1377,6 +1377,11 @@ class MainActivity : AppCompatActivity() {
                   // la preuve que la traduction s'applique, pas seulement
                   // qu'elle est chargée.
                   fr:((document.body?document.body.innerText:'').match(/Enregistrer|Accueil|Insertion|Annuler|Fermer|Ouvrir|Police|Paragraphe|Rechercher|Aide/g)||[]).length,
+                  // Les premiers libellés encore en anglais : de quoi savoir
+                  // exactement quoi traduire, sans deviner.
+                  en:((document.body?document.body.innerText:'').split('\n')
+                       .filter(function(l){return /^[A-Z][a-z]+( [a-zA-Z]+)*$/.test(l.trim());})
+                       .slice(0,40).join('|')),
                   // La première tuile de l'accueil, en points CSS : de quoi
                   // la toucher depuis un appareil automatisé.
                   tuiles:(function(){var t=document.querySelectorAll('.app-card');
