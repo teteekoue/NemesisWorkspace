@@ -292,6 +292,26 @@ const WORDS = {
   'Table of Figures': 'Table des illustrations', 'Enclosure': 'Pièce jointe',
   'Style Set': 'Jeu de styles', 'Fonts': 'Polices', 'Colors': 'Couleurs',
   'Paragraph Spacing': 'Espacement des paragraphes', 'Effects': 'Effets',
+
+  /* Relevé sur l'écran réel : ce qui restait en anglais */
+  Modifier: 'Modifier', Tools: 'Outils', Accessibility: 'Accessibilité',
+  'Not saved yet': 'Pas encore enregistré', Editing: 'Édition',
+  'Texte mode': 'Mode texte', 'Text mode': 'Mode texte',
+  'Volet des styles': 'Volet des styles',
+  'Unnamed document': 'Document sans nom', Untitled: 'Sans titre',
+  'Untitled document': 'Document sans titre', 'No document open': 'Aucun document ouvert',
+  'Home & Tools': 'Accueil et outils', 'Text Tools': 'Outils de texte',
+  'Text tools': 'Outils de texte', 'Formatting Pane': 'Volet de mise en forme',
+  'Remplacer': 'Remplacer',
+
+  'Références': 'Références', 'Révision': 'Révision', 'Affichage': 'Affichage',
+  'Création': 'Création', 'Disposition': 'Disposition', 'Diaporama': 'Diaporama',
+  'Fichier': 'Fichier', 'Accueil': 'Accueil', 'Insertion': 'Insertion',
+  'Dessin': 'Dessin', 'Format': 'Format', 'Tableau': 'Tableau', 'Aide': 'Aide',
+  'Outils': 'Outils', 'Modifier': 'Modifier', 'Données': 'Données',
+  'Formules': 'Formules', 'Vérification': 'Vérification', 'Commentaires': 'Commentaires',
+  'Statistiques': 'Statistiques', 'Synonymes': 'Synonymes', 'Langue': 'Langue',
+  'Accessibilité': 'Accessibilité',
   // L'onglet « Insert » de la suite : c'est un nom d'onglet, pas un verbe.
   Insert: 'Insertion',
 };

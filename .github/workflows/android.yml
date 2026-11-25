@@ -38,8 +38,8 @@ concurrency:
 env:
   NODE_VERSION: '22'
   JAVA_VERSION: '17'
-  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.1' }}
-  VERSION_CODE: ${{ github.event.inputs.versionCode || '2' }}
+  VERSION_NAME: ${{ github.event.inputs.versionName || '1.0.2' }}
+  VERSION_CODE: ${{ github.event.inputs.versionCode || '3' }}
 
 jobs:
   build:
