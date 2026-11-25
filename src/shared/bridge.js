@@ -188,6 +188,57 @@ export async function saveDeviceFile({ name, bytes, mime }) {
   return { name, location: 'Téléchargements' };
 }
 
+/**
+ * Écrire le fichier à l'endroit d'où il vient.
+ *
+ * C'est ce que la sauvegarde attend d'une application de bureau : le fichier
+ * que la personne a ouvert est celui qu'elle retrouve en le rouvrant. Sans
+ * original connu (un fichier créé dans l'application), la réponse le dit et
+ * l'appelant demande où enregistrer.
+ *
+ * @returns {Promise<{linked: boolean, name?: string, location?: string}>}
+ */
+export async function saveToSourceFile({ name, bytes, mime }) {
+  const native = host();
+  if (!native?.saveToSource) return { linked: false };
+  const result = safeJson(
+    await native.saveToSource(
+      JSON.stringify({ name, mime: mime || 'application/octet-stream', bytes: bytesToBase64(bytes) }),
+    ),
+    null,
+  );
+  return { linked: !!result?.linked, name: result?.name || name, location: result?.location || '' };
+}
+
+/**
+ * « Enregistrer sous » : la feuille de destination du système. `uri` désigne
+ * l'original à réécrire quand il est connu ; sinon la feuille s'ouvre et le
+ * dossier choisi devient celui du fichier.
+ */
+export async function saveDeviceFileAs({ name, bytes, mime, uri = '' }) {
+  const native = host();
+  if (!native?.saveFileAs) return saveDeviceFile({ name, bytes, mime });
+  const result = safeJson(
+    await native.saveFileAs(
+      uri,
+      JSON.stringify({ name, mime: mime || 'application/octet-stream', bytes: bytesToBase64(bytes) }),
+    ),
+    null,
+  );
+  if (!result?.linked) return null;
+  return { name: result.name || name, location: result.location || '' };
+}
+
+/** Le nom sous lequel un fichier importé garde son original sur l'appareil. */
+export function hasSourceFile(name) {
+  const native = host();
+  try {
+    return !!(native?.hasSource && native.hasSource(String(name || '')));
+  } catch {
+    return false;
+  }
+}
+
 /** Partager un fichier par la feuille de partage Android. */
 export async function shareFile({ name, bytes, mime }) {
   const native = host();

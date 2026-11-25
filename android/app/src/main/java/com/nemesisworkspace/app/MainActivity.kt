@@ -75,6 +75,19 @@ class MainActivity : AppCompatActivity() {
     private val pendingSave = AtomicReference<CountDownLatch?>(null)
     private val saved = AtomicReference<String?>(null)
 
+    /**
+     * Le fichier d'origine de chaque fichier importé, quand il a été choisi
+     * dans l'interface système et que l'application peut le réécrire.
+     *
+     * Sans cela, modifier un document ne modifiait que la copie rangée dans
+     * l'application : le fichier de l'utilisateur gardait l'ancienne version.
+     * La clé est le nom du fichier importé, la valeur son adresse d'origine.
+     */
+    private val sourceUris = java.util.concurrent.ConcurrentHashMap<String, Uri>()
+    private val pendingSaveAs = AtomicReference<CountDownLatch?>(null)
+    private val savedAs = AtomicReference<String?>(null)
+    private val pendingSaveName = AtomicReference<String?>(null)
+
     private lateinit var assetLoader: WebViewAssetLoader
 
     private val openDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -87,6 +100,14 @@ class MainActivity : AppCompatActivity() {
 
     private val createDocument = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         deliverSave(uri)
+    }
+
+    /**
+     * « Enregistrer sous » : le système demande où écrire, et l'adresse
+     * choisie devient celle du fichier, pour les sauvegardes suivantes.
+     */
+    private val createDocumentAs = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        deliverSaveAs(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -522,6 +543,9 @@ class MainActivity : AppCompatActivity() {
             try {
                 val name = displayName(uri) ?: defaultName(uri)
                 val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+                // Le fichier d'origine reste lié à sa copie : une sauvegarde
+                // réécrira ce fichier-là, pas seulement la copie interne.
+                sourceUris[sourceKey(name)] = uri
                 files.put(
                     JSONObject()
                         .put("name", name)
@@ -533,6 +557,77 @@ class MainActivity : AppCompatActivity() {
         }
         picked.set(files.toString())
         latch.countDown()
+    }
+
+    /**
+     * L'identité d'un fichier, telle que l'interface la nomme : son nom seul,
+     * sans dépendre de la casse du système de fichiers.
+     */
+    private fun sourceKey(name: String): String = name.trim().lowercase()
+
+    /**
+     * Le fichier d'origine d'un nom donné, s'il a été importé depuis le
+     * stockage de l'appareil et reste réinscriptible.
+     */
+    private fun sourceUriFor(name: String): Uri? {
+        val uri = sourceUris[sourceKey(name)] ?: return null
+        return try {
+            contentResolver.openOutputStream(uri, "wt")?.close()
+            uri
+        } catch (error: Exception) {
+            // Le fournisseur ne l'accorde plus : la copie interne reste la
+            // seule destination, et l'interface le sait.
+            null
+        }
+    }
+
+    /** Écrit un fichier à l'adresse de son original. Vrai si l'écriture a eu lieu. */
+    private fun writeBack(name: String, bytes: ByteArray): Uri? {
+        val uri = sourceUriFor(name) ?: return null
+        return try {
+            contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                out.write(bytes)
+                out.flush()
+            } ?: return null
+            uri
+        } catch (error: Exception) {
+            Log.w(TAG, "réécriture impossible pour $name : ${error.message}")
+            null
+        }
+    }
+
+    private fun deliverSaveAs(uri: Uri?) {
+        val latch = pendingSaveAs.getAndSet(null)
+        if (latch == null) return
+        val name = pendingSaveName.getAndSet(null).orEmpty()
+        if (uri == null) {
+            savedAs.set(null)
+            latch.countDown()
+            return
+        }
+        Thread {
+            val answer = try {
+                val bytes = pendingBytes.get()
+                contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                    out.write(bytes)
+                    out.flush()
+                }
+                // Le fichier choisi devient l'original de ce nom : les
+                // sauvegardes suivantes l'écrivent là, sans rien demander.
+                sourceUris[sourceKey(displayName(uri) ?: name)] = uri
+                JSONObject()
+                    .put("name", displayName(uri) ?: name)
+                    .put("location", displayName(uri) ?: "Documents")
+                    .put("linked", true)
+                    .toString()
+            } catch (error: Exception) {
+                Log.w(TAG, "enregistrement sous refusé : ${error.message}")
+                null
+            }
+            pendingBytes.set(ByteArray(0))
+            savedAs.set(answer)
+            latch.countDown()
+        }.start()
     }
 
     private fun deliverSave(uri: Uri?) {
@@ -549,9 +644,14 @@ class MainActivity : AppCompatActivity() {
             val answer = try {
                 val bytes = pendingBytes.get()
                 contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                val written = displayName(uri) ?: "document"
+                // Ce qui vient d'être écrit à la main devient l'original de
+                // ce nom : les sauvegardes suivantes y retournent.
+                sourceUris[sourceKey(written)] = uri
                 JSONObject()
-                    .put("name", displayName(uri) ?: "document")
-                    .put("location", "Documents")
+                    .put("name", written)
+                    .put("location", written)
+                    .put("linked", true)
                     .toString()
             } catch (error: Exception) {
                 null
@@ -687,6 +787,72 @@ class MainActivity : AppCompatActivity() {
             if (!answer.has("name")) answer.put("name", name)
             return answer.toString()
         }
+
+        /**
+         * Écrit le fichier à l'endroit d'où il vient, sans rien demander.
+         * Répond `{ linked: true, name }` quand l'original a été réécrit, et
+         * `{ linked: false }` quand il n'y a pas d'original à mettre à jour :
+         * l'interface décide alors d'ouvrir la feuille de destination.
+         */
+        @JavascriptInterface
+        fun saveToSource(json: String): String {
+            val args = runCatching { JSONObject(json) }.getOrDefault(JSONObject())
+            val name = args.optString("name")
+            if (name.isBlank()) return JSONObject().put("linked", false).toString()
+            val bytes = runCatching { Base64.decode(args.optString("bytes"), Base64.DEFAULT) }
+                .getOrDefault(ByteArray(0))
+            val uri = writeBack(name, bytes)
+                ?: return JSONObject().put("linked", false).toString()
+            return JSONObject()
+                .put("linked", true)
+                .put("name", displayName(uri) ?: name)
+                .put("location", displayName(uri) ?: name)
+                .toString()
+        }
+
+        /**
+         * « Enregistrer sous » : la feuille de destination du système s'ouvre,
+         * et le dossier choisi reste celui du fichier ensuite.
+         */
+        @JavascriptInterface
+        fun saveFileAs(uri: String, json: String): String {
+            val args = runCatching { JSONObject(json) }.getOrDefault(JSONObject())
+            val name = args.optString("name").ifBlank { "Document" }
+            val bytes = runCatching { Base64.decode(args.optString("bytes"), Base64.DEFAULT) }
+                .getOrDefault(ByteArray(0))
+            // L'original du nom est réécrit ; sans original, la feuille de
+            // destination du système s'ouvre et le dossier choisi reste
+            // attaché au fichier pour les sauvegardes suivantes.
+            if (uri.isNotBlank()) {
+                val back = writeBack(uri, bytes)
+                if (back != null) {
+                    return JSONObject()
+                        .put("linked", true)
+                        .put("name", displayName(back) ?: name)
+                        .put("location", displayName(back) ?: name)
+                        .toString()
+                }
+            }
+            pendingBytes.set(bytes)
+            pendingSaveName.set(name)
+            val latch = CountDownLatch(1)
+            savedAs.set(null)
+            pendingSaveAs.set(latch)
+            ui.post {
+                try {
+                    createDocumentAs.launch(name)
+                } catch (error: Exception) {
+                    deliverSaveAs(null)
+                }
+            }
+            latch.await(5, TimeUnit.MINUTES)
+            pendingSaveAs.compareAndSet(latch, null)
+            return savedAs.getAndSet(null) ?: JSONObject().put("linked", false).toString()
+        }
+
+        /** Le nom sous lequel un fichier importé est connu de l'original. */
+        @JavascriptInterface
+        fun hasSource(name: String): Boolean = sourceUriFor(name) != null
 
         @JavascriptInterface
         fun shareFile(json: String): String {

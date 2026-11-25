@@ -19,7 +19,7 @@
  *   <script src="/shared/local-sdk.js"></script>
  */
 
-import { pickDeviceFiles, saveDeviceFile, shareFile, openExternal, isNative } from './bridge.js';
+import { pickDeviceFiles, saveDeviceFile, saveDeviceFileAs, saveToSourceFile, hasSourceFile, bytesToBase64, shareFile, openExternal, isNative } from './bridge.js';
 import { activeProvider, aiIsConfigured, getAiConfig } from './config.js';
 import { chat as aiChat } from './ai.js';
 import { maybeBackup } from './backups.js';
@@ -260,6 +260,39 @@ function withSuffix(name, attempt) {
 }
 
 /**
+ * Réécrire le fichier d'origine d'un nom importé.
+ *
+ * C'est lui que la personne rouvrira : sans cette écriture, seul le fichier
+ * rangé dans l'application changeait, et le document retrouvé ensuite était
+ * l'ancien. La correspondance avec l'adresse accordée par le sélecteur du
+ * système vit côté natif ; hors application installée, il n'y a pas
+ * d'original à mettre à jour et la réponse le dit.
+ */
+async function writeOriginal(name, blob) {
+  if (!isNative() || !hasSourceFile(name)) return false;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const result = await saveToSourceFile({ name, bytes, mime: mimeFor(name) });
+  return !!result?.linked;
+}
+
+/**
+ * Demander une destination au système, puis y écrire le fichier.
+ *
+ * C'est le geste attendu d'un « Enregistrer sous » : la feuille de
+ * destination s'ouvre, le dossier choisi devient celui du fichier, et les
+ * sauvegardes suivantes y retournent sans rien demander. La réponse est
+ * null quand la feuille est refermée sans choisir.
+ */
+async function chooseAndWrite(name, blob) {
+  if (!isNative()) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return saveDeviceFile({ name, bytes, mime: mimeFor(name) });
+  }
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  return saveDeviceFileAs({ name, bytes, mime: mimeFor(name) });
+}
+
+/**
  * Le cœur des écritures : toutes les options du SDK d'origine sont honorées
  * (overwrite, dedupeName, createMissingParents), car les éditeurs comptent
  * sur elles pour ne jamais perdre un fichier.
@@ -299,6 +332,14 @@ async function writePath(asked, data, options = {}) {
   await putMeta(meta);
   // Le dossier parent vient de changer de date.
   if (parentMeta) await putMeta({ ...parentMeta, modified: meta.modified });
+
+  // Si ce fichier vient du stockage de l'appareil, l'original est réécrit :
+  // c'est lui que la personne rouvrira, pas la copie rangée ici. Une
+  // écriture en retour refusée ne fait pas échouer l'enregistrement — la
+  // copie de l'application, elle, est bien à jour.
+  if (!options.skipSourceWrite) {
+    await writeOriginal(meta.name, blob).catch(() => {});
+  }
 
   // Une copie datée, sur place, pour que la perte d'un fichier ne soit jamais
   // définitive. En arrière-plan : l'enregistrement ne l'attend pas, et un
@@ -553,6 +594,18 @@ const ACCEPT_MIME = {
 
 const mimeOfExtension = (ext) => ACCEPT_MIME[String(ext).toLowerCase()] || '';
 
+/**
+ * Le dossier de l'application qui correspond à un format — le tableur, la
+ * présentation et les images ont le leur ; le reste va aux documents.
+ */
+function folderFor(name) {
+  if (/\.(xlsx|xlsm|xls|csv|ods|tsv)$/i.test(name)) return 'Spreadsheets';
+  if (/\.(pptx|ppsx|odp|potx)$/i.test(name)) return 'Presentations';
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name)) return 'Pictures';
+  if (/\.(docx|dotx|docm|hwp|hwpx|md|txt|html?|rtf|odt|pdf)$/i.test(name)) return 'Documents';
+  return 'Imports';
+}
+
 /** Un fichier choisi trouve sa place dans un dossier de l'application. */
 async function importIntoFolder(folder, file) {
   await fsApi.mkdir(folder).catch(() => {});
@@ -582,13 +635,6 @@ async function showOpenFilePicker(options = {}) {
     // ce que les trois applications attendent derrière leur propre garde.
     return undefined;
   }
-  const folderFor = (name) => {
-    if (/\.(docx|dotx|docm|hwp|hwpx|md|txt|html?)$/i.test(name)) return 'Documents';
-    if (/\.(xlsx|xlsm|xls|csv|ods|tsv)$/i.test(name)) return 'Spreadsheets';
-    if (/\.(pptx|ppsx|odp)$/i.test(name)) return 'Presentations';
-    if (/\.(png|jpe?g|gif|webp|bmp)$/i.test(name)) return 'Pictures';
-    return 'Imports';
-  };
   const imported = [];
   for (const file of files) imported.push(await importIntoFolder(folderFor(file.name), file));
   return options.multiple ? imported : imported[0];
@@ -604,20 +650,23 @@ async function showSaveFilePicker(data, suggestedName = 'Fichier') {
   const bytes = new Uint8Array(
     await (data instanceof Blob ? data.arrayBuffer() : blobOf(data, name).arrayBuffer()),
   );
-  const folder = /\.pptx$/i.test(name) ? 'Presentations' : /\.xlsx$/i.test(name) ? 'Spreadsheets' : 'Documents';
-  const item = await writePath(`${folder}/${name}`, new Blob([bytes], { type: mimeFor(name) }), {
+  const item = await writePath(`${folderFor(name)}/${name}`, new Blob([bytes], { type: mimeFor(name) }), {
     overwrite: false,
     dedupeName: true,
     createMissingParents: true,
+    // L'original est écrit par la feuille ci-dessous, à l'endroit choisi.
+    skipSourceWrite: true,
   });
-  try {
-    // La copie sur l'appareil peut être refusée : le fichier de l'application
-    // reste en place dans tous les cas.
-    await saveDeviceFile({ name: item.name, bytes, mime: mimeFor(item.name) });
-  } catch {
-    /* annulé par l'utilisateur */
-  }
-  return { path: item.path, name: item.name, uid: item.uid, modified: item.modified };
+  // La feuille de destination du système : le dossier choisi devient celui du
+  // fichier, et les sauvegardes suivantes y retournent sans rien demander.
+  const written = await chooseAndWrite(item.name, new Blob([bytes], { type: mimeFor(item.name) }))
+    .catch(() => null);
+  return {
+    path: item.path,
+    name: written?.name || item.name,
+    uid: item.uid,
+    modified: item.modified,
+  };
 }
 
 /** Un sélecteur de dossier : l'assemblage natif ne l'expose pas encore. */
