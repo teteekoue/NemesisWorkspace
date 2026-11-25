@@ -1373,6 +1373,10 @@ class MainActivity : AppCompatActivity() {
                   editing:editing,
                   path:location.pathname,
                   boot:String((window.__nemesisBootError||'')) .slice(0,300),
+                  // Combien de libellés français sont réellement à l'écran :
+                  // la preuve que la traduction s'applique, pas seulement
+                  // qu'elle est chargée.
+                  fr:((document.body?document.body.innerText:'').match(/Enregistrer|Accueil|Insertion|Annuler|Fermer|Ouvrir|Police|Paragraphe|Rechercher|Aide/g)||[]).length,
                   // La première tuile de l'accueil, en points CSS : de quoi
                   // la toucher depuis un appareil automatisé.
                   tuiles:(function(){var t=document.querySelectorAll('.app-card');

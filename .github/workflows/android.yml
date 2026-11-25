@@ -370,6 +370,15 @@ jobs:
           sleep 6
           $ADB logcat -d | grep -F "interface prête" | tail -1 | cut -c1-200
 
+          # L'interface est en français, et la dictée est disponible : les
+          # deux sont lus dans le rapport que la page fait d'elle-même.
+          $ADB logcat -d | grep -F "dictée :" | tail -1
+          RAPPORT=$($ADB logcat -d | grep -F "interface prête" | tail -1)
+          echo "$RAPPORT" | cut -c1-240
+          echo "$RAPPORT" | grep -qE '"fr\\":([1-9]|[1-9][0-9])' \
+            || fail "aucun libellé français à l'écran"
+          echo "::notice::L'interface s'affiche en français."
+
           # 1) Depuis la liste : le retour ramène à l'accueil de l'espace.
           $ADB shell input keyevent KEYCODE_BACK
           sleep 10
