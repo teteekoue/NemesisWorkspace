@@ -291,6 +291,9 @@ class MainActivity : AppCompatActivity() {
                 view.evaluateJavascript(PRINT_BRIDGE, null)
                 // La dictée, pour les moteurs qui ne l'ont pas.
                 view.evaluateJavascript(DICTATION_BRIDGE, null)
+                // La langue déclarée par la page suit ce qu'elle affiche : les
+                // lecteurs d'écran, la césure et la dictée s'y accordent.
+                view.evaluateJavascript("document.documentElement.lang='fr'", null)
                 // Ce que l'écran affiche réellement, dans le journal : utile
                 // sur un appareil qu'on ne peut pas brancher, et vérifiable par
                 // la construction.
