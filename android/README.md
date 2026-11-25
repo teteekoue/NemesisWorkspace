@@ -89,3 +89,41 @@ impression. L'impression passe par le service d'impression d'Android, où
 Sur un appareil dont le moteur de rendu n'a jamais été mis à jour, les
 méthodes de DOM récentes (`replaceChildren`, `append`…) sont complétées au
 démarrage : sans elles, l'écran resterait vide.
+
+## Enregistrement des fichiers
+
+Un fichier ouvert depuis le stockage de l'appareil y est **réécrit** à chaque
+sauvegarde : c'est le fichier de la personne qui est mis à jour, pas seulement
+la copie rangée dans l'application. L'application retient l'adresse d'origine
+accordée par le sélecteur du système.
+
+- **Fichier ouvert depuis l'appareil** : la sauvegarde écrit à sa place, sans
+  rien demander.
+- **Nouveau fichier, ou « Enregistrer sous »** : la feuille de destination du
+  système s'ouvre, et le dossier choisi devient celui du fichier ensuite.
+- **Export vers un autre format** (PDF, CSV, TXT…) : même feuille, même
+  mémorisation, et chaque format retrouve son dossier de l'application
+  (classeurs, présentations, images, documents).
+
+`src/shared/local-sdk.js` porte cette logique ; `MainActivity.saveToSource`,
+`saveFileAs` et `hasSource` sont les trois appels natifs qui l'accompagnent.
+Le test `.t/sauvegarde.mjs` vérifie le comportement, original simulé compris.
+
+## Dictée
+
+La vue intégrée n'a pas de reconnaissance vocale. L'application branche donc
+celle du système derrière la même interface (`SpeechRecognition`) : le bouton
+**Dicter** de l'onglet Accueil fonctionne, le micro est demandé une fois, et
+chaque phrase reconnue s'insère au curseur comme une frappe au clavier. Le
+journal note `dictée : reconnaissance du système disponible` au démarrage, et
+la construction refuse de publier un paquet où aucun libellé français
+n'apparaît à l'écran.
+
+## Langue
+
+L'interface des trois éditeurs s'affiche en français (onglets, rubans, menus,
+boutons, dialogues). La traduction se fait à l'affichage, en un seul endroit —
+`src/shared/fr.js` — que chaque application traverse par son constructeur
+d'éléments : aucun fichier de l'interface n'a été dupliqué pour cela. Le
+contenu des documents n'est jamais traduit : styles, formules et textes
+restent ceux du fichier. Le test `.t/francais.mjs` couvre le rendu réel.
